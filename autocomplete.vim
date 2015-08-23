@@ -210,7 +210,6 @@ call AUTOCOMPLETE_init()
 call AUTOCOMPLETE_RegisterKeyMap()
 set completefunc=AUTOCOMPLETE_CompleteFunction
 set completeopt=longest,menuone
-"au CursorMovedI * call printf("%s", "ihello")
 au BufRead * call AUTOCOMPLETE_init()
 au InsertEnter * call AUTOCOMPLETE_InsertEnterHandler()
 au InsertLeave * call AUTOCOMPLETE_InsertLeaveHandler()
