@@ -36,12 +36,17 @@ function AUTOCOMPLETE_IsCurrentWord(keyword)
     return b:currentWord == a:keyword
 endfunction
 
+function AUTOCOMPLETE_GetCurrentWord()
+    return b:currentWord
+endfunction
+
 function AUTOCOMPLETE_ClearCurrentWord()
     let b:currentWord = ""
 endfunction
 
 function AUTOCOMPLETE_SetCurrentWord(word)
     let b:currentWord = a:word
+    echom "AUTOCOMPLETE_SetCurrentWord():".b:currentWord
 endfunction
 
 function AUTOCOMPLETE_AddCharToWord(ch)
@@ -117,7 +122,7 @@ function AUTOCOMPLETE_CompleteFunction(findstart, base)
 endfunction
 
 function AUTOCOMPLETE_FeedKey(key)
-    echom "AUTOCOMPLETE_FeedKey: get key:" . a:key
+    "echom "AUTOCOMPLETE_FeedKey: get key:" . a:key
     let l:retKey = get(b:AUTOCOMPLETE_eKey, a:key, a:key)
     if a:key =~ 'bs'
         let l:pos = col('.')-2 - GetStartPosOfCurrentWord()
@@ -144,8 +149,20 @@ function AUTOCOMPLETE_RegisterKeyMapForPmenu()
     "exit the popup menu
 endfunction
 
-function AUTOCOMPLETE_Escape(key)
-    return get(b:AUTOCOMPLETE_eKey, a:key, a:key)
+function AUTOCOMPLETE_PostModifierHandler()
+    call AUTOCOMPLETE_SetCurrentWord(GetWordAtCursor())
+endfunction
+
+function AUTOCOMPLETE_RegisterSpecialKeyMap()
+    let l:specialKeys = ['x']
+    let l:strMap = 'nnoremap <silent> %s '.
+        \ ':call AUTOCOMPLETE_SetCurrentWord(GetWordAtCursor())<CR>'.
+        \ '%s'.
+        \ ':call AUTOCOMPLETE_PostModifierHandler()<CR>'
+    for i in range(len(l:specialKeys))
+        let l:key = l:specialKeys[i]
+        execute printf(l:strMap, l:key, l:key)
+    endfor
 endfunction
 
 function AUTOCOMPLETE_RegisterKeyMap()
@@ -159,20 +176,18 @@ function AUTOCOMPLETE_RegisterKeyMap()
         \ '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
     let l:listSpecialKeys = ['space', 'bs']
     let l:ShowPopupAndOriginalWord = "<C-x><C-u><C-n><C-p>"
+    let l:strMap = "inoremap <silent> %s <C-r>=AUTOCOMPLETE_FeedKey('%s')<CR>%s" 
     for k in l:listKeys
-        "let l:key = AUTOCOMPLETE_Escape(k)
-        "let l:keyType = type(l:key) == type(0) ? "%s" : "'\%s'"
-        let l:strMap = "inoremap <silent> %s <C-r>=AUTOCOMPLETE_FeedKey('%s')<CR>%s" 
         "echom printf(l:strMap, k, k, l:ShowPopupAndOriginalWord)
         execute printf(l:strMap, k, k, l:ShowPopupAndOriginalWord)
     endfor
     for sk in l:listSpecialKeys
         let l:key = '<'.sk.'>'
-        let l:strMap = "inoremap <silent> %s <C-r>=AUTOCOMPLETE_FeedKey('%s')<CR>%s" 
         "echom printf(l:strMap, l:key, sk, l:ShowPopupAndOriginalWord)
         execute printf(l:strMap, l:key, sk, l:ShowPopupAndOriginalWord)
     endfor
     "AUTCOMPLETE_RegisterKeyMapForPmenu()
+    call AUTOCOMPLETE_RegisterSpecialKeyMap()
 endfunction
 
 function AUTOCOMPLETE_InsertLeaveHandler()
@@ -185,7 +200,7 @@ function AUTOCOMPLETE_InsertLeaveHandler()
 endfunction
 
 function AUTOCOMPLETE_InsertEnterHandler()
-    let l:word = expand("<cword>")
+    let l:word = GetWordAtCursor()
     "if AUTOCOMPLETE_IsKeyword(l:word)
     "endif
     "echom "AUTOCOMPLETE_InsertEnterHandler():before enter:".b:currentWord

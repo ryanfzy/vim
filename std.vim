@@ -92,3 +92,6 @@ function GetListAsString(list)
     return l:str
 endfunction
 
+function GetWordAtCursor()
+    return expand("<cword>")
+endfunction
