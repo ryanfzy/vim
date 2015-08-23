@@ -201,8 +201,6 @@ endfunction
 
 function AUTOCOMPLETE_InsertEnterHandler()
     let l:word = GetWordAtCursor()
-    "if AUTOCOMPLETE_IsKeyword(l:word)
-    "endif
     "echom "AUTOCOMPLETE_InsertEnterHandler():before enter:".b:currentWord
     call AUTOCOMPLETE_SetCurrentWord(l:word) 
     "echom "AUTOCOMPLETE_InsertEnterHandler():after enter:".b:currentWord
