@@ -5,24 +5,6 @@ let b:AUTOCOMPLETE_eKey = {
     \ 'bs' : "\<bs>"
     \ }
 
-function AUTOCOMPLETE_init()
-    let b:listKeywords = []
-    let b:currentWord = ""
-    let b:bFindKeyword = 0
-    let l:tokens = GetListOfTokensOfCurrentFile()
-    let l:bFindVariable = 0
-    for i in range(len(l:tokens))
-        if l:tokens[i] == "var" || l:tokens[i] == "function"
-            let l:bFindVariable = 1
-        elseif l:bFindVariable
-            let b:listKeywords = add(b:listKeywords, l:tokens[i])
-            let l:bFindVariable = 0
-        endif
-    endfor
-    "echom GetListAsString(l:tokens)
-    "echom "AUTOCOMPLETE_init():" . GetListAsString(b:listKeywords)
-endfunction
-
 function AUTOCOMPLETE_Reinit()
     let b:currentWord = ""
     let b:bFindKeyword = 0
@@ -53,12 +35,16 @@ function AUTOCOMPLETE_AddCharToWord(ch)
     let b:currentWord .= a:ch
 endfunction
 
+function AUTOCOMPELTE_AddToKeywordDict(newKey)
+    "TODO
+endfunction
+
 function AUTOCOMPLETE_RemoveCharFromWord(pos)
-    echom "RemoveCharFromWord():before:".b:currentWord.";remove:".a:pos
+    "echom "RemoveCharFromWord():before:".b:currentWord.";remove:".a:pos
     let l:firstPart = strpart(b:currentWord, 0, a:pos)
     let l:secondPart = strpart(b:currentWord, a:pos+1)
     let b:currentWord = l:firstPart . l:secondPart
-    echom "RemoveCharFromWord():pos(".a:pos."):".b:currentWord
+    "echom "RemoveCharFromWord():pos(".a:pos."):".b:currentWord
 endfunction
 
 function AUTOCOMPLETE_FoundNewWord()
@@ -85,6 +71,18 @@ function AUTOCOMPLETE_IsKeyword(key)
     return g:FALSE
 endfunction
 
+function AUTOCOMPLETE_ReplaceKeyword(oldKey, newKey)
+    echom "AUTOCOMPLETE_ReplaceKeyword():oldkey:".a:oldKey.";newkey:".a:newKey
+    echom "before:".GetListAsString(b:listKeywords)
+    for i in range(len(b:listKeywords))
+        if b:listKeywords[i] =~ a:oldKey
+            call remove(b:listKeywords, i)
+            let b:listKeyworts = add(b:listKeywords, a:newKey)
+        endif
+    endfor
+    echom "after:".GetListAsString(b:listKeywords)
+endfunction
+
 function AUTOCOMPLETE_DoesFindKeyword()
     if b:bFindKeyword && b:currentWord =~ '^\a'
         return g:TRUE
@@ -109,10 +107,9 @@ endfunction
 
 function AUTOCOMPLETE_CompleteFunction(findstart, base)
     if a:findstart
-        let l:startPos = GetStartPosOfCurrentWord() + 1
+        let l:startPos = GetStartPosOfCurrentWord()
         return l:startPos
     else
-        echom "AUTOCOMPLETE_CompleteFunction():base:".a:base
         if AUTOCOMPLETE_IsWordEmpty()
             return []
         else
@@ -127,10 +124,12 @@ function AUTOCOMPLETE_FeedKey(key)
     if a:key =~ 'bs'
         let l:pos = col('.')-2 - GetStartPosOfCurrentWord()
         call AUTOCOMPLETE_RemoveCharFromWord(l:pos)
-    elseif a:key =~ 'space'
+    elseif a:key =~ 'space' || a:key =~ ';'
         if AUTOCOMPLETE_IsCurrentWord("var") || AUTOCOMPLETE_IsCurrentWord("function")
+            echom "AUTOCOMPLETE_FindKeyword():find var or function"
             call AUTOCOMPLETE_FindKeyword(g:TRUE)
         elseif AUTOCOMPLETE_DoesFindKeyword()
+            echom "AUTOCOMPLETE_FindKeyword():find new word"
             call AUTOCOMPLETE_AddWordToWordList()
             call AUTOCOMPLETE_FindKeyword(g:FALSE)
         endif
@@ -150,7 +149,11 @@ function AUTOCOMPLETE_RegisterKeyMapForPmenu()
 endfunction
 
 function AUTOCOMPLETE_PostModifierHandler()
-    call AUTOCOMPLETE_SetCurrentWord(GetWordAtCursor())
+    let l:keyword = AUTOCOMPLETE_GetCurrentWord()
+    if AUTOCOMPLETE_IsKeyword(l:keyword)
+        call AUTOCOMPLETE_ReplaceKeyword(l:keyword, GetWordAtCursor())
+    endif
+    call AUTOCOMPLETE_Reinit()
 endfunction
 
 function AUTOCOMPLETE_RegisterSpecialKeyMap()
@@ -173,7 +176,8 @@ function AUTOCOMPLETE_RegisterKeyMap()
         \ 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K',
         \ 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V',
         \ 'W', 'X', 'Y', 'Z',
-        \ '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+        \ '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+        \ ';']
     let l:listSpecialKeys = ['space', 'bs']
     let l:ShowPopupAndOriginalWord = "<C-x><C-u><C-n><C-p>"
     let l:strMap = "inoremap <silent> %s <C-r>=AUTOCOMPLETE_FeedKey('%s')<CR>%s" 
@@ -187,16 +191,16 @@ function AUTOCOMPLETE_RegisterKeyMap()
         execute printf(l:strMap, l:key, sk, l:ShowPopupAndOriginalWord)
     endfor
     "AUTCOMPLETE_RegisterKeyMapForPmenu()
-    call AUTOCOMPLETE_RegisterSpecialKeyMap()
+    "call AUTOCOMPLETE_RegisterSpecialKeyMap()
 endfunction
 
 function AUTOCOMPLETE_InsertLeaveHandler()
-    "echom "AUTOCOMPLETE_InsertLeaveHandler():before leave:".b:currentWord
+    echom "AUTOCOMPLETE_InsertLeaveHandler():before leave:".b:currentWord
     if !AUTOCOMPLETE_IsWordEmpty() && AUTOCOMPLETE_DoesFindKeyword()
         call AUTOCOMPLETE_AddWordToWordList()
     endif
     call AUTOCOMPLETE_Reinit()
-    "echom "AUTOCOMPLETE_InsertLeaveHandler():after leave:".b:currentWord
+    echom "AUTOCOMPLETE_InsertLeaveHandler():after leave:".b:currentWord
 endfunction
 
 function AUTOCOMPLETE_InsertEnterHandler()
@@ -206,13 +210,45 @@ function AUTOCOMPLETE_InsertEnterHandler()
     "echom "AUTOCOMPLETE_InsertEnterHandler():after enter:".b:currentWord
 endfunction
 
-call AUTOCOMPLETE_init()
-call AUTOCOMPLETE_RegisterKeyMap()
-set completefunc=AUTOCOMPLETE_CompleteFunction
-set completeopt=longest,menuone
-au BufRead * call AUTOCOMPLETE_init()
-au InsertEnter * call AUTOCOMPLETE_InsertEnterHandler()
-au InsertLeave * call AUTOCOMPLETE_InsertLeaveHandler()
+function AUTOCOMPLETE_init()
+    " set global variables
+    let b:listKeywords = []
+    let b:currentWord = ""
+    let b:bFindKeyword = 0
+
+    " parse current file to get keywords
+    let l:tokens = GetListOfTokensOfCurrentFile()
+    let l:bFindVariable = 0
+    for i in range(len(l:tokens))
+        if l:tokens[i] == "var" || l:tokens[i] == "function"
+            let l:bFindVariable = 1
+        elseif l:bFindVariable
+            let b:listKeywords = add(b:listKeywords, l:tokens[i])
+            let l:bFindVariable = 0
+        endif
+    endfor
+    "echom GetListAsString(l:tokens)
+    "echom "AUTOCOMPLETE_init():" . GetListAsString(b:listKeywords)
+
+    " set key mapping
+    call AUTOCOMPLETE_RegisterKeyMap()
+
+    " set auto complete settings
+    set completefunc=AUTOCOMPLETE_CompleteFunction
+    set completeopt=longest,menuone
+endfunction
+
+au BufRead *.js call AUTOCOMPLETE_init()
+"au InsertEnter *.js call AUTOCOMPLETE_InsertEnterHandler()
+au InsertLeave *.js call AUTOCOMPLETE_InsertLeaveHandler()
 
 highlight Pmenu ctermfg=white ctermbg=green
 highlight PmenuSel ctermfg=white ctermbg=brown
+
+nnoremap <C-i> :call AUTOCOMPLETE_SetCurrentWord(expand("<cword>"))<CR>:call AUTOCOMPLETE_AddWordToWordList()<CR>
+
+function AUTOCOMPLETE_KeywordCmd(pat, after)
+    call AUTOCOMPLETE_AddToKeywordDict({pat: a:pat, after: a:after})
+endfunction
+
+"command -nargs=+ Autocomplete :call AUTOCOMPLETE_KeywordCmd(<f-args>)
