@@ -95,3 +95,12 @@ endfunction
 function GetWordAtCursor()
     return expand("<cword>")
 endfunction
+
+"GetSubList(<list>, startIndex {, count})
+function GetSubList(list, start, ...)
+    let l:end = len(a:list) - 1
+    if a:0 > 2
+        let l:end = a:start + a:2
+    endif
+    return remove(a:list, a:start, l:end)
+endfunction

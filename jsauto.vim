@@ -16,29 +16,29 @@ endfunction
 let b:listIdentifier = []
 let b:listVariable = []
 
-function AutoComplAddIdentifier(identifier)
-    let b:listIdentifier = add(b:listIdentifier, a:identifier)
-    echom "identifiers:".b:listIdentifier
+function AutoComplAddKeyCmd(params)
+    "let b:listIdentifier = add(b:listIdentifier, a:identifier)
+    echom "AutoComplAddKeyCmd params:".GetListAsString(a:params)
 endfunction
 
-function AutoComplAddVariable(variable)
-    let b:listVariable = add(b:listVariable, a:variable)
-    echom "variables:".b:listVariable
+function AutoComplSetCompleteFunctionCmd(params)
+    "let b:listVariable = add(b:listVariable, a:variable)
+    echom "AutoCmplSetCompleteFunctionCmd params:".GetListAsString(a:params)
 endfunction
 
 function AutocompleteCommand(args)
-    let l:listArgs = split(args)
-    if l:listArgs[0] =~ "identifier"
-        call AutoComplAddIdentifier(l:listArgs[1])
-    elseif l:listArgs[0] =~ "variable"
-        call AutoComplAddVariable(l:listArgs[1])
-    "elseif l:listArgs[0] =~ "completeFn"
-        "call AutoComplAddCompleteFn(l:listArgs[1], l:listArgs[2])
+    let l:listArgs = split(a:args)
+    let l:cmd = l:listArgs[0]
+    let l:params = GetSubList(l:listArgs, 1)
+    if l:cmd =~ "AddKey"
+        call AutoComplAddKeyCmd(l:params)
+    elseif l:cmd =~ "SetCompleteFunction"
+        call AutoComplSetCompleteFunctionCmd(l:params)
     endif
 endfunction
 
 command -narg=+ Autocmpl :call AutocompleteCommand(<q-args>)
 
-Autocmpl identifier \a(\a|\d)*
-Autocmpl variable after=var
-Autocmpl completeFn CompleteFn variable
+Autocmpl AddKey identifier \a(\a|\d)*
+Autocmpl AddKey variable %(identifier) after=var
+Autocmpl SetCompleteFunction CompleteFn params=%(variable)
