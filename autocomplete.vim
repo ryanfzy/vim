@@ -1,5 +1,8 @@
 " key word auto completion
 
+let b:keys = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+let b:separators = "~`!@#$%^&*()_+-={}|[]\;':\"<>?,./ "
+
 let b:AUTOCOMPLETE_eKey = {
     \ 'space' : "\<space>",
     \ 'bs' : "\<bs>"
@@ -119,26 +122,34 @@ function AUTOCOMPLETE_CompleteFunction(findstart, base)
 endfunction
 
 function AUTOCOMPLETE_FeedKey(key)
-    "echom "AUTOCOMPLETE_FeedKey: get key:" . a:key
-    let l:retKey = get(b:AUTOCOMPLETE_eKey, a:key, a:key)
-    if a:key =~ 'bs'
-        let l:pos = col('.')-2 - GetStartPosOfCurrentWord()
-        call AUTOCOMPLETE_RemoveCharFromWord(l:pos)
-    elseif a:key =~ 'space' || a:key =~ ';'
-        if AUTOCOMPLETE_IsCurrentWord("var") || AUTOCOMPLETE_IsCurrentWord("function")
-            echom "AUTOCOMPLETE_FindKeyword():find var or function"
-            call AUTOCOMPLETE_FindKeyword(g:TRUE)
-        elseif AUTOCOMPLETE_DoesFindKeyword()
-            echom "AUTOCOMPLETE_FindKeyword():find new word"
-            call AUTOCOMPLETE_AddWordToWordList()
-            call AUTOCOMPLETE_FindKeyword(g:FALSE)
-        endif
-        call AUTOCOMPLETE_ClearCurrentWord()
-    else
-        call AUTOCOMPLETE_AddCharToWord(a:key)
+"    "echom "AUTOCOMPLETE_FeedKey: get key:" . a:key
+"    let l:retKey = get(b:AUTOCOMPLETE_eKey, a:key, a:key)
+"    if a:key =~ 'bs'
+"        let l:pos = col('.')-2 - GetStartPosOfCurrentWord()
+"        call AUTOCOMPLETE_RemoveCharFromWord(l:pos)
+"    elseif a:key =~ 'space' || a:key =~ ';'
+"        if AUTOCOMPLETE_IsCurrentWord("var") || AUTOCOMPLETE_IsCurrentWord("function")
+"            echom "AUTOCOMPLETE_FindKeyword():find var or function"
+"            call AUTOCOMPLETE_FindKeyword(g:TRUE)
+"        elseif AUTOCOMPLETE_DoesFindKeyword()
+"            echom "AUTOCOMPLETE_FindKeyword():find new word"
+"            call AUTOCOMPLETE_AddWordToWordList()
+"            call AUTOCOMPLETE_FindKeyword(g:FALSE)
+"        endif
+"        call AUTOCOMPLETE_ClearCurrentWord()
+"    else
+    if AUTCOMPLETE_ShouldCallCompleteFn()
+       call AUTOCOMPLETE_AddCharToWord(a:key)
     endif
     echom "AUTOCOMPLETE_FeedKey: current word:".b:currentWord 
-    return l:retKey 
+"    return l:retKey 
+    echom b:currentWord
+    return a:key
+endfunction
+
+function AUTOCOMPLETE_ClearKey(sep)
+    call AUTOCOMPLETE_ClearCurrentWord()
+    return a:sep
 endfunction
 
 function AUTOCOMPLETE_RegisterKeyMapForPmenu()
@@ -148,50 +159,53 @@ function AUTOCOMPLETE_RegisterKeyMapForPmenu()
     "exit the popup menu
 endfunction
 
-function AUTOCOMPLETE_PostModifierHandler()
-    let l:keyword = AUTOCOMPLETE_GetCurrentWord()
-    if AUTOCOMPLETE_IsKeyword(l:keyword)
-        call AUTOCOMPLETE_ReplaceKeyword(l:keyword, GetWordAtCursor())
-    endif
-    call AUTOCOMPLETE_Reinit()
-endfunction
-
-function AUTOCOMPLETE_RegisterSpecialKeyMap()
-    let l:specialKeys = ['x']
-    let l:strMap = 'nnoremap <silent> %s '.
-        \ ':call AUTOCOMPLETE_SetCurrentWord(GetWordAtCursor())<CR>'.
-        \ '%s'.
-        \ ':call AUTOCOMPLETE_PostModifierHandler()<CR>'
-    for i in range(len(l:specialKeys))
-        let l:key = l:specialKeys[i]
-        execute printf(l:strMap, l:key, l:key)
-    endfor
-endfunction
+"function AUTOCOMPLETE_PostModifierHandler()
+"    let l:keyword = AUTOCOMPLETE_GetCurrentWord()
+"    if AUTOCOMPLETE_IsKeyword(l:keyword)
+"        call AUTOCOMPLETE_ReplaceKeyword(l:keyword, GetWordAtCursor())
+"    endif
+"    call AUTOCOMPLETE_Reinit()
+"endfunction
+"
+"function AUTOCOMPLETE_RegisterSpecialKeyMap()
+"    let l:specialKeys = ['x']
+"    let l:strMap = 'nnoremap <silent> %s '.
+"        \ ':call AUTOCOMPLETE_SetCurrentWord(GetWordAtCursor())<CR>'.
+"        \ '%s'.
+"        \ ':call AUTOCOMPLETE_PostModifierHandler()<CR>'
+"    for i in range(len(l:specialKeys))
+"        let l:key = l:specialKeys[i]
+"        execute printf(l:strMap, l:key, l:key)
+"    endfor
+"endfunction
 
 function AUTOCOMPLETE_RegisterKeyMap()
-    let l:listKeys = [
-        \ 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k',
-        \ 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
-        \ 'w', 'x', 'y', 'z',
-        \ 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K',
-        \ 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V',
-        \ 'W', 'X', 'Y', 'Z',
-        \ '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-        \ ';']
-    let l:listSpecialKeys = ['space', 'bs']
+    let l:strMap = "inoremap <silent> %s <C-r>=%s('%s')<CR>%s" 
+    let l:feedFn = "AUTOCOMPLETE_FeedKey"
     let l:ShowPopupAndOriginalWord = "<C-x><C-u><C-n><C-p>"
-    let l:strMap = "inoremap <silent> %s <C-r>=AUTOCOMPLETE_FeedKey('%s')<CR>%s" 
-    for k in l:listKeys
+    for i in range(len(b:keys))
+        let k = l:keys[i]
         "echom printf(l:strMap, k, k, l:ShowPopupAndOriginalWord)
-        execute printf(l:strMap, k, k, l:ShowPopupAndOriginalWord)
+        execute printf(l:strMap, k, l:feedFn, k, l:ShowPopupAndOriginalWord)
     endfor
-    for sk in l:listSpecialKeys
-        let l:key = '<'.sk.'>'
-        "echom printf(l:strMap, l:key, sk, l:ShowPopupAndOriginalWord)
-        execute printf(l:strMap, l:key, sk, l:ShowPopupAndOriginalWord)
-    endfor
-    "AUTCOMPLETE_RegisterKeyMapForPmenu()
-    "call AUTOCOMPLETE_RegisterSpecialKeyMap()
+
+" we now only care about the alphanumeric keys
+"    let l:clearFn = "AUTOCOMPLETE_ClearKey"
+"    let l:listSeparators = [
+"        \ '+', '-', '*', '/', '(', ')', '[', ']', '{', '}', ';', ' '
+"        \ ]
+"    for k in l:listSeparators
+"        execute printf(l:strMap, k, ,l:clearFn, k, '');
+"    endfor
+"
+"    let l:listSpecialKeys = ['space', 'bs']
+"    for sk in l:listSpecialKeys
+"        let l:key = '<'.sk.'>'
+"        "echom printf(l:strMap, l:key, sk, l:ShowPopupAndOriginalWord)
+"        execute printf(l:strMap, l:key, sk, l:ShowPopupAndOriginalWord)
+"    endfor
+"    "AUTCOMPLETE_RegisterKeyMapForPmenu()
+"    "call AUTOCOMPLETE_RegisterSpecialKeyMap()
 endfunction
 
 function AUTOCOMPLETE_InsertLeaveHandler()

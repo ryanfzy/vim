@@ -78,18 +78,19 @@ function GetListOfTokensOfCurrentFile()
 endfunction
 
 function GetListAsString(list)
-    let l:str = "["
-    let l:bFirstItem = g:TRUE
-    for item in a:list
-        if l:bFirstItem
-            let l:str = l:str . item
-            let l:bFirstItem = g:FALSE
-        else
-            let l:str = l:str . "," . item
-        endif
-    endfor
-    let l:str .= "]"
-    return l:str
+    return string(list)
+"    let l:str = "["
+"    let l:bFirstItem = g:TRUE
+"    for item in a:list
+"        if l:bFirstItem
+"            let l:str = l:str . item
+"            let l:bFirstItem = g:FALSE
+"        else
+"            let l:str = l:str . "," . item
+"        endif
+"    endfor
+"    let l:str .= "]"
+"    return l:str
 endfunction
 
 function GetWordAtCursor()
@@ -103,4 +104,34 @@ function GetSubList(list, start, ...)
         let l:end = a:start + a:2
     endif
     return remove(a:list, a:start, l:end)
+endfunction
+
+function GetWordsOnCurLine()
+    let l:line = getline('.')
+    return split(l:line, '\s+')
+endfunction
+
+" get pos of current word on current line
+function GetPosOfWordOnCurLine()
+    let l:word = GetWordAtCursor()
+    let l:words = GetWordsOnCurLine()
+    for n in range(l:words)
+        if l:words[n] =~ l:word
+            return n
+        endif
+    endfor
+endfunction
+
+" get word at offset relative to current word on current line
+function GetWord(offset)
+    if offset == 0
+        return GetWordAtCursor()
+    endif
+
+    "let l:line = getline(.)
+    "let l:listWord = split(l:line, '\s+')
+    let l:listWords = GetWordsOnCurLine()
+    let l:curPos = GetPosOfWordOnCurLine()
+    let l:offsetPos = l:curPos + a:offset
+    return l:listWord[l:offsetPos]
 endfunction
