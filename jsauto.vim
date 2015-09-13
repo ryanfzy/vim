@@ -73,9 +73,25 @@ function AutoComplSetKeyWordHandlerCmd(params)
     "echom "AutoCmplSetCompleteFunctionCmd:".string(b:listCompleteFnParams)
 endfunction
 
+" TODO
+function AUTCOMPLETE_Match(word, pat)
+endfunction
+
 function AUTOCOMPLETE_CheckWord(listWords, index, key)
     let l:word = a:listWords[a:index]
     if !AUTOCOMPLETE_IsKey(a:key)
+        return AUTOCOMPLETE_CheckWordSub(a:listWords, a:index, a:key)
+    else
+        let l:stripKey = AUTOCOMPELTE_StripKey(a:key)
+        if !AUTOCOMPLETE_CheckWord(a:listWords, a:index, a:key)
+            return g:FALSE
+        else
+            return AUTOCOMPLETE_CheckWordSub(a:listWords, a:index, a:key)
+        endif
+    endif
+endfunction
+
+function AUTOCOMPLETE_CheckWordSub(listWords, index, key)
         let l:dictValue = b:dictKeys[a:key]
         let l:value = l:dictValue['value']
         if !AUTOCOMPLETE_Match(l:word, l:value)
@@ -88,10 +104,6 @@ function AUTOCOMPLETE_CheckWord(listWords, index, key)
             endif
         endif
         return g:TRUE
-    else
-        let l:stripKey = AUTOCOMPELTE_StripKey(a:key)
-        " TODO get recursion works
-    endif
 endfunction
 
 function AUTOCOMPLETE_GetArgsDict(listArgs)
