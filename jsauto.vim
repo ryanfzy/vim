@@ -9,22 +9,21 @@
 "auto scope while while\([^\)]\)\{%(whileBody)\}
 
 
-function CompleteFn(variable)
-    return ["abc", "bbc"]
-endfunction
-
 function AutoMockFn()
     echom "mock"
 endfunction
 
 let b:dictKeys = {}
 let b:completeFn = function('AutoMockFn')
-let b keyWordHanlderFn = function('AutoMockFn')
-let b:listCompleteFnParams = []
+let b:keyWordHanlderFn = function('AutoMockFn')
+let b:keyWordHandlerFnParams = ""
+
+let b:words = []
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 " AddKey command
-function AutoComplAddKeyCmd(params)
+function AUTOCOMPLETE_AddKeyCmd(params)
+    call Debug("AUTOCOMPLETE_AddKeyCmd()")
     let l:key = a:params[0]
     let l:value = {}
     let l:value['value'] = a:params[1]
@@ -35,12 +34,13 @@ function AutoComplAddKeyCmd(params)
         endfor
     endif
     let b:dictKeys[l:key] = l:value
-    echom "AutoComplAddKeyCmd :".string(b:dictKeys)
 endfunction
 
 " a user defined key is in format %(<key-name>)
 function AUTOCOMPLETE_IsKey(key)
-    if a:key =~ '\%\((\d|\a)\)'
+    call Debug("AUTCOMPLETE_IsKey:")
+    let l:pat = '%(\a\+)'
+    if match(a:key, l:pat) == 0
         return g:TRUE
     else
         return g:FALSE
@@ -49,64 +49,69 @@ endfunction
 
 " get the <key-name> from %(<key-name>)
 function AUTOCOMPLETE_StripKey(key)
+    call Debug("AUTOCOMPLETE_StripKey()")
     return strpart(a:key, 2, len(a:key)-3)
 endfunction
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 " SetKeyWordHandler command
-function AutoComplSetKeyWordHandlerCmd(params)
+function AUTOCOMPLETE_SetKeyWordHandlerCmd(params)
+    call Debug("AUTOCOMPLETE_SetKeyWordHandlerCmd()")
     let l:fnName = a:params[0]
-    let l:dictParams = AUTOCOMPLETE_GetArgsDict(GetSubList(a:params, 1))
-    let l:param = l:dictParams['params']
-
-    if !AUTOCOMPLETE_IsKey(l:param)
-        return
-    endif
-
     let b:keyWordHandlerFn = function(l:fnName)
-    let l:listWords = GetListOfTokensOfCurrentFile()
-    for n in range(len(l:listWords))
-        if AUTOCOMPLETE_CheckWord(l:listWords, n, l:param)
-            call b:keyWordHandler(l:listWords[n])        
-        endif
-    endfor
-    "echom "AutoCmplSetCompleteFunctionCmd:".string(b:listCompleteFnParams)
+
+    let l:dictParams = AUTOCOMPLETE_GetArgsDict(GetSubList(a:params, 1))
+    let b:keyWordHandlerFnParams = l:dictParams['params']
 endfunction
 
-" TODO
-function AUTCOMPLETE_Match(word, pat)
+function AUTOCOMPLETE_Match(word, pat)
+    call Debug("AUTOCOMPLETE_Match()")
+    if match(a:word, a:pat) == 0
+        return g:TRUE
+    else
+        return g:FALSE
+    endif
 endfunction
 
 function AUTOCOMPLETE_CheckWord(listWords, index, key)
-    let l:word = a:listWords[a:index]
+    call Debug("AUTOCOMPLETE_CheckWord()")
     if !AUTOCOMPLETE_IsKey(a:key)
-        return AUTOCOMPLETE_CheckWordSub(a:listWords, a:index, a:key)
+        return AUTOCOMPLETE_CheckWordFromKeyDict(a:listWords, a:index, a:key)
     else
-        let l:stripKey = AUTOCOMPELTE_StripKey(a:key)
-        if !AUTOCOMPLETE_CheckWord(a:listWords, a:index, a:key)
-            return g:FALSE
-        else
-            return AUTOCOMPLETE_CheckWordSub(a:listWords, a:index, a:key)
-        endif
+        let l:stripKey = AUTOCOMPLETE_StripKey(a:key)
+        return AUTOCOMPLETE_CheckWord(a:listWords, a:index, l:stripKey)
     endif
 endfunction
 
-function AUTOCOMPLETE_CheckWordSub(listWords, index, key)
-        let l:dictValue = b:dictKeys[a:key]
-        let l:value = l:dictValue['value']
-        if !AUTOCOMPLETE_Match(l:word, l:value)
+function AUTOCOMPLETE_CheckWordFromKeyDict(listWords, index, key)
+    call Debug("AUTOCOMPLETE_CheckWordFromKeyDict()")
+    let l:dictValue = b:dictKeys[a:key]
+    let l:value = l:dictValue['value']
+    let l:word = a:listWords[a:index]
+    if AUTOCOMPLETE_IsKey(l:value)
+        let l:stripKey = AUTOCOMPLETE_StripKey(l:value)
+        if !AUTOCOMPLETE_CheckWordFromKeyDict(a:listWords, a:index, l:stripKey)
             return g:FALSE
-        elseif has_key(l:dictValue, 'before')
-            let l:beforeValue = l:dictValue['before']
-            let l:beforeWord = a:listWords[a:index]
-            if !AUTOCOMPLETE_Match(l:beforeWord, l:beforeValue)
-                return g:FALSE
-            endif
         endif
-        return g:TRUE
+    elseif !AUTOCOMPLETE_Match(l:word, l:value)
+        return g:FALSE
+    endif
+    if has_key(l:dictValue, 'before')
+        " first word doesn't have before word
+        if a:index < 1
+            return g:FALSE
+        endif
+        let l:beforeValue = l:dictValue['before']
+        let l:beforeWord = a:listWords[a:index-1]
+        if !AUTOCOMPLETE_Match(l:beforeWord, l:beforeValue)
+            return g:FALSE
+        endif
+    endif
+    return g:TRUE
 endfunction
 
 function AUTOCOMPLETE_GetArgsDict(listArgs)
+    call Debug("AUTOCOMPLETE_GetArgsDict()")
     let l:dictArgs = {}
     for arg in a:listArgs
         let l:args = split(arg, '=')
@@ -119,6 +124,7 @@ endfunction
 " if a param is %(<param-name>), we just check if <param-name> is a valid key
 " if a param is native, we check if it same as <current-word>
 function AUTOCOMPLETE_ValidateKey(key)
+    call Debug("AUTOCOMPLETE_ValidateKey()")
     if AUTOCOMPLETE_IsKey(a:key)
         let l:stripKey = AUTOCOMPLETE_StripKey(a:key)
         return AUTOCOMPLETE_ValidateKeyInDict(l:stripKey)
@@ -129,6 +135,7 @@ function AUTOCOMPLETE_ValidateKey(key)
 endfunction
 
 function AUTOCOMPLETE_ValidateKeyInDict(key)
+    call Debug("AUTOCOMPLETE_ValidateKeyInDict()")
     " get the value of the <key> in key dictionary
     let l:value = b:dictKeys[a:key]['value']
     if AUTCOMPLETE_IsKey(l:value)
@@ -141,6 +148,7 @@ endfunction
 
 " check we should call the complete function
 function AUTCOMPLETE_ShouldCallCompleteFn()
+    call Debug("AUTOCOMPLETE_ShouldCallCompleteFn()")
     let l:curWord = AUTOCOMPLETE_GetCurrentWord()
     for n in b:listCompleteFnParams
         if !AUTOCOMPLETE_ValidateKey(n)
@@ -153,19 +161,38 @@ endfunction
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 "control function, it parse the argument list and
 "call respective command
-function AutocompleteCommand(args)
+function AUTOCOMPLETE_CmdProcessor(args)
+    call Debug("AUTOCOMPLETE_CmdProcessor()")
     let l:listArgs = split(a:args)
     let l:cmd = l:listArgs[0]
     let l:params = GetSubList(l:listArgs, 1)
     if l:cmd =~ "AddKey"
-        call AutoComplAddKeyCmd(l:params)
+        call AUTOCOMPLETE_AddKeyCmd(l:params)
     elseif l:cmd =~ "SetKeyWordHandler"
-        call AutoComplSetKeyWordHandlerCmd(l:params)
+        call AUTOOCMPLETE_SetKeyWordHandlerCmd(l:params)
     endif
+endfunction
+
+function AUTOCOMPLETE_Run()
+    call Debug("AUTOCOMPLETE_Run()")
+    let l:listWords = GetListOfTokensOfCurrentFile()
+
+    " run key word handler
+    let l:param = b:keyWordHandlerFnParams
+    for n in range(len(l:listWords))
+        if AUTOCOMPLETE_CheckWord(l:listWords, n, l:param)
+            call b:keyWordHandlerFn(l:listWords[n])        
+        endif
+    endfor
+endfunction
+
+function KeyWordHandler(keyword)
+    "echom "KeyWordHandler:".a:keyword
+    let b:words = add(b:words, a:keyword)
 endfunction
 
 command -narg=+ Autocmpl :call AutocompleteCommand(<q-args>)
 
-Autocmpl AddKey identifier \a(\a|\d)*
+Autocmpl AddKey identifier \a[\a\d]*
 Autocmpl AddKey variable %(identifier) before=var
 Autocmpl SetKeyWordHandler KeyWordHandler params=%(variable)

@@ -135,3 +135,9 @@ function GetWord(offset)
     let l:offsetPos = l:curPos + a:offset
     return l:listWord[l:offsetPos]
 endfunction
+
+function Debug(msg)
+    if b:bDebug
+        echom a:msg
+    endif
+endfunction

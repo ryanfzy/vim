@@ -266,3 +266,5 @@ function AUTOCOMPLETE_KeywordCmd(pat, after)
 endfunction
 
 "command -nargs=+ Autocomplete :call AUTOCOMPLETE_KeywordCmd(<f-args>)
+
+let b:bDebug = g:FALSE
