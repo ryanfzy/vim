@@ -18,8 +18,6 @@ let b:completeFn = function('AutoMockFn')
 let b:keyWordHanlderFn = function('AutoMockFn')
 let b:keyWordHandlerFnParams = ""
 
-let b:words = []
-
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 " AddKey command
 function AUTOCOMPLETE_AddKeyCmd(params)
@@ -169,11 +167,11 @@ function AUTOCOMPLETE_CmdProcessor(args)
     if l:cmd =~ "AddKey"
         call AUTOCOMPLETE_AddKeyCmd(l:params)
     elseif l:cmd =~ "SetKeyWordHandler"
-        call AUTOOCMPLETE_SetKeyWordHandlerCmd(l:params)
+        call AUTOCOMPLETE_SetKeyWordHandlerCmd(l:params)
     endif
 endfunction
 
-function AUTOCOMPLETE_Run()
+function AUTOCOMPLETE_RunFinder()
     call Debug("AUTOCOMPLETE_Run()")
     let l:listWords = GetListOfTokensOfCurrentFile()
 
@@ -186,13 +184,9 @@ function AUTOCOMPLETE_Run()
     endfor
 endfunction
 
-function KeyWordHandler(keyword)
-    "echom "KeyWordHandler:".a:keyword
-    let b:words = add(b:words, a:keyword)
+function AUTOCOMPLETE_ShouldCallKeyWordHandlerFn(listOfWord, index)
+    let l:param = b:keyWordHandlerFnParams
+    return AUTOCOMPLETE_CheckWord(a:listOfWords, a:index, l:param)
 endfunction
 
-command -narg=+ Autocmpl :call AutocompleteCommand(<q-args>)
-
-Autocmpl AddKey identifier \a[\a\d]*
-Autocmpl AddKey variable %(identifier) before=var
-Autocmpl SetKeyWordHandler KeyWordHandler params=%(variable)
+command -narg=+ Autocmpl :call AUTOCOMPLETE_CmdProcessor(<q-args>)

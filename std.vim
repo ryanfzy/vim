@@ -14,13 +14,19 @@ function GetUserEnteredCharacter()
     return l:lastCh
 endfunction
 
-function GetStartPosOfCurrentWord()
-    "echom "GetStartPosOfCurrentWord():"
+function GetStartPosOfCurrentWord(separators)
     let l:line = getline('.')
     let l:sPos = col('.')-1
-    while l:sPos > 0 && line[l:sPos-1] !~ '\s'
-        let l:sPos -= 1
+
+    " cursor is just after a word
+    " while loop ends when the word before the cursor is a space or a separator
+    while l:sPos > 0 && line[l:sPos-1] !~ '\s' 
+        if !IsEmptyString(a:separators) || match(a:separators, line[l:sPos-1]) == -1
+            let l:sPos -= 1
+        endif
     endwhile
+
+    " cursor is after a space
     if l:sPos == col('.')-1
         let l:sPos = -1
     endif
