@@ -64,11 +64,18 @@ endfunction
 
 function AUTOCOMPLETE_Match(word, pat)
     call Debug("AUTOCOMPLETE_Match()")
-    if match(a:word, a:pat) == 0
-        return g:TRUE
+    let l:listPats = []
+    if type(a:pat) == type("")
+        let l:listPats = add(l:listPats, a:pat)
     else
-        return g:FALSE
+        let l:listPats = l:listPats + a:pat
     endif
+    for p in l:listPats
+        if match(a:word, p) == 0
+            return g:TRUE
+        endif
+    endfor
+    return g:FALSE
 endfunction
 
 function AUTOCOMPLETE_CheckWord(listWords, index, key)
@@ -99,9 +106,9 @@ function AUTOCOMPLETE_CheckWordFromKeyDict(listWords, index, key)
         if a:index < 1
             return g:FALSE
         endif
-        let l:beforeValue = l:dictValue['before']
+        let l:listBeforeValues = split(l:dictValue['before'], '|')
         let l:beforeWord = a:listWords[a:index-1]
-        if !AUTOCOMPLETE_Match(l:beforeWord, l:beforeValue)
+        if !AUTOCOMPLETE_Match(l:beforeWord, l:listBeforeValues)
             return g:FALSE
         endif
     endif

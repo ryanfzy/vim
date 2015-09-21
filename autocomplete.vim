@@ -94,6 +94,7 @@ endfunction
 
 " get list of words starting with b:currentWord
 function AUTCOMPLETE_GetWordList()
+    echom "here"
     call Debug("AUTOCOMPLETE_GetWordList()")
     let l:listMatchedWords = []
     for i in range(len(b:listKeywords))
@@ -122,11 +123,11 @@ function AUTOCOMPLETE_FeedKey(key)
 "        endif
 "        call AUTOCOMPLETE_ClearCurrentWord()
 "    else
-    let l:wordsOfCurLine = GetListOfTokens(getline('.'))
-    let l:indexOfCurWord = len(l:wordsOfCurLine)-1
-    if AUTCOMPLETE_ShouldCallKeyWordHandlerFn(l:wordsOfCurLine, l:indexOfCurWord)
+    "let l:wordsOfCurLine = GetListOfTokens(getline('.'))
+    "let l:indexOfCurWord = len(l:wordsOfCurLine)-1
+    "if AUTCOMPLETE_ShouldCallKeyWordHandlerFn(l:wordsOfCurLine, l:indexOfCurWord)
        call AUTOCOMPLETE_AddCharToWord(a:key)
-    endif
+    "endif
     return a:key
 endfunction
 
@@ -169,8 +170,7 @@ function AUTOCOMPLETE_RegisterKeyMap()
     let l:feedFn = "AUTOCOMPLETE_FeedKey"
     let l:ShowPopupAndOriginalWord = "<C-x><C-u><C-n><C-p>"
     for i in range(len(b:keys))
-        let k = l:keys[i]
-        "echom printf(l:strMap, k, k, l:ShowPopupAndOriginalWord)
+        let k = b:keys[i]
         execute printf(l:strMap, k, l:feedFn, k, l:ShowPopupAndOriginalWord)
     endfor
 
@@ -217,7 +217,7 @@ function AUTOCOMPLETE_Init()
     let b:bFindKeyword = 0
 
     " find the key words in existing file
-    AUTOCOMPLETE_RunFinder()
+    call AUTOCOMPLETE_RunFinder()
 
     " set key mapping
     call AUTOCOMPLETE_RegisterKeyMap()
@@ -227,13 +227,16 @@ endfunction
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 function KeyWordHandler(keyWord)
     call Debug("KeyWordHandler()")
-    let b:listKeywords = add(b:listKeywords, a:keyWord)
+    if index(b:listKeywords, a:keyWord) == -1
+        let b:listKeywords = add(b:listKeywords, a:keyWord)
+    endif
+    echom string(b:listKeywords)
 endfunction
 
 source ~/vim/autofinder.vim
 
 Autocmpl AddKey identifier \a[\a\d]*
-Autocmpl AddKey variable %(identifier) before=var
+Autocmpl AddKey variable %(identifier) before=var|function
 Autocmpl SetKeyWordHandler KeyWordHandler params=%(variable)
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -246,7 +249,7 @@ au InsertLeave *.js call AUTOCOMPLETE_InsertLeaveHandler()
 function AUTOCOMPLETE_CompleteFunction(findstart, base)
     if a:findstart
         "return the start pos of the word that needs to be replaced by autocomplete
-        let l:startPos = GetStartPosOfCurrentWord(b:separator)
+        let l:startPos = GetStartPosOfCurrentWord(b:separators)
         return l:startPos
     else
         "return the list of words that matches the word
