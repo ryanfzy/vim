@@ -19,6 +19,14 @@ let b:keyWordHanlderFn = function('AutoMockFn')
 let b:keyWordHandlerFnParams = ""
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+function AUTOCOMPLETE_CallKeyWordHandlerFnIfMatch(listWords, index)
+    let l:param = b:keyWordHandlerFnParams
+    if AUTOCOMPLETE_CheckWord(a:listWords, a:index, l:param)
+        call b:keyWordHandlerFn(a:listWords[a:index])
+    endif
+endfunction
+
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 " AddKey command
 function AUTOCOMPLETE_AddKeyCmd(params)
     call Debug("AUTOCOMPLETE_AddKeyCmd()")

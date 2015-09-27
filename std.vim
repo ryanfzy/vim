@@ -21,8 +21,10 @@ function GetStartPosOfCurrentWord(separators)
     " cursor is just after a word
     " while loop ends when the word before the cursor is a space or a separator
     while l:sPos > 0 && line[l:sPos-1] !~ '\s' 
-        if !IsEmptyString(a:separators) || match(a:separators, line[l:sPos-1]) == -1
+        if !IsEmptyString(a:separators) && match(a:separators, line[l:sPos-1]) == -1
             let l:sPos -= 1
+        else
+            break
         endif
     endwhile
 
@@ -118,6 +120,8 @@ function GetWordsOnCurLine()
 endfunction
 
 " get pos of current word on current line
+" FIX: for string "apple banana apple" if cursor under second apple
+"   the pos of first apple will be returned
 function GetPosOfWordOnCurLine()
     let l:word = GetWordAtCursor()
     let l:words = GetWordsOnCurLine()

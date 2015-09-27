@@ -92,43 +92,6 @@ function AUTOCOMPLETE_DoesFindKeyword()
     endif
 endfunction
 
-" get list of words starting with b:currentWord
-" TODO: support fuzzy lookup
-function AUTCOMPLETE_GetWordList()
-    echom "here"
-    call Debug("AUTOCOMPLETE_GetWordList()")
-    let l:listMatchedWords = []
-    for i in range(len(b:listKeywords))
-        if match(b:listKeywords[i], '^'.b:currentWord) == 0
-            let l:listMatchedWords = add(l:listMatchedWords, b:listKeywords[i])
-        endif
-    endfor
-    return l:listMatchedWords
-endfunction
-
-" feed the word to autocomplete and 
-" return the key user just typed to the buffer
-function AUTOCOMPLETE_FeedKey(key)
-    call Debug("AUTOCOMPLETE_FeedKey()")
-
-    let l:part = strpart(getline('.'), 0, col('.')-1) . a:key
-    let l:listWords = GetListOfTokens(l:part)
-    let l:curWord = l:listWords[len(l:listWords)-1]
-    call AUTOCOMPLETE_SetCurrentWord(l:curWord)
-    return a:key
-endfunction
-
-function AUTOCOMPLETE_ClearKey(sep)
-    call AUTOCOMPLETE_ClearCurrentWord()
-    return a:sep
-endfunction
-
-function AUTOCOMPLETE_RegisterKeyMapForPmenu()
-    "navigate on the popup menu
-    execute "inoremap <C-h> <C-n>"
-
-    "exit the popup menu
-endfunction
 
 "function AUTOCOMPLETE_PostModifierHandler()
 "    let l:keyword = AUTOCOMPLETE_GetCurrentWord()
@@ -150,38 +113,69 @@ endfunction
 "    endfor
 "endfunction
 
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+" key stroke mappings
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+" TODO: map autocomplete menu
+function AUTOCOMPLETE_RegisterKeyMapForPmenu()
+    "navigate on the popup menu
+    execute "inoremap <C-h> <C-n>"
+
+    "exit the popup menu
+endfunction
+
+" feed the word to autocomplete and 
+" return the key user just typed to the buffer
+function AUTOCOMPLETE_FeedAutoComplete(key)
+    call Debug("AUTOCOMPLETE_FeedAutoComplete()")
+
+    let l:part = strpart(getline('.'), 0, col('.')-1) . a:key
+    let l:listWords = GetListOfTokens(l:part)
+    let l:curWord = l:listWords[len(l:listWords)-1]
+    
+    call AUTOCOMPLETE_SetCurrentWord(l:curWord)
+    return a:key
+endfunction
+
+function AUTOCOMPLETE_FeedKeyHandlerIfMatch(sep)
+    call AUTOCOMPLETE_ClearCurrentWord()
+
+    let l:part = strpart(getline('.'), 0, col('.')-1)
+    let l:listWords = GetListOfTokens(l:part)
+    let l:curIndex = len(l:listWords)-1
+
+    let l:fullListWords = GetListOfTokens(getline('.'))
+    call AUTOCOMPLETE_CallKeyWordHandlerFnIfMatch(l:fullListWords, l:curIndex)
+    
+    return a:sep
+endfunction
+
 function AUTOCOMPLETE_RegisterKeyMap()
     call Debug("AUTOCOMPLETE_RegisterKeyMap()")
 
     " map normal keys
     let l:strMap = "inoremap <silent> %s <C-r>=%s('%s')<CR>%s" 
-    let l:feedFn = "AUTOCOMPLETE_FeedKey"
+    let l:autoFeedFn = "AUTOCOMPLETE_FeedAutoComplete"
     let l:ShowPopupAndOriginalWord = "<C-x><C-u><C-n><C-p>"
     for i in range(len(b:keys))
         let k = b:keys[i]
-        execute printf(l:strMap, k, l:feedFn, k, l:ShowPopupAndOriginalWord)
+        execute printf(l:strMap, k, l:autoFeedFn, k, l:ShowPopupAndOriginalWord)
     endfor
 
     " map separator keys
-    let l:clearFn = "AUTOCOMPLETE_ClearKey"
+    let l:khFeedFn = "AUTOCOMPLETE_FeedKeyHandlerIfMatch"
     for j in range(len(b:separators))
         let k = b:separators[j]
         if k =~ '\s'
             let k = "<space>"
         endif
-        echom printf(l:strMap, k, l:clearFn, k, '')
-        execute printf(l:strMap, k, l:clearFn, k, '')
+        execute printf(l:strMap, k, l:khFeedFn, k, '')
     endfor
-"
-"    let l:listSpecialKeys = ['space', 'bs']
-"    for sk in l:listSpecialKeys
-"        let l:key = '<'.sk.'>'
-"        "echom printf(l:strMap, l:key, sk, l:ShowPopupAndOriginalWord)
-"        execute printf(l:strMap, l:key, sk, l:ShowPopupAndOriginalWord)
-"    endfor
-"    "AUTCOMPLETE_RegisterKeyMapForPmenu()
-"    "call AUTOCOMPLETE_RegisterSpecialKeyMap()
+
 endfunction
+
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 function AUTOCOMPLETE_InsertLeaveHandler()
     echom "AUTOCOMPLETE_InsertLeaveHandler():before leave:".b:currentWord
@@ -220,7 +214,6 @@ function KeyWordHandler(keyWord)
     if index(b:listKeywords, a:keyWord) == -1
         let b:listKeywords = add(b:listKeywords, a:keyWord)
     endif
-    echom string(b:listKeywords)
 endfunction
 
 source ~/vim/autofinder.vim
@@ -231,11 +224,20 @@ Autocmpl SetKeyWordHandler KeyWordHandler params=%(variable)
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
-au BufRead *.js call AUTOCOMPLETE_Init()
-"au InsertEnter *.js call AUTOCOMPLETE_InsertEnterHandler()
-au InsertLeave *.js call AUTOCOMPLETE_InsertLeaveHandler()
+" get list of words starting with b:currentWord
+" TODO: support fuzzy lookup
+function AUTCOMPLETE_GetWordList()
+    echom "here"
+    call Debug("AUTOCOMPLETE_GetWordList()")
+    let l:listMatchedWords = []
+    for i in range(len(b:listKeywords))
+        if match(b:listKeywords[i], '^'.b:currentWord) == 0
+            let l:listMatchedWords = add(l:listMatchedWords, b:listKeywords[i])
+        endif
+    endfor
+    return l:listMatchedWords
+endfunction
 
-""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 function AUTOCOMPLETE_CompleteFunction(findstart, base)
     if a:findstart
         "return the start pos of the word that needs to be replaced by autocomplete
@@ -251,10 +253,14 @@ function AUTOCOMPLETE_CompleteFunction(findstart, base)
     endif
 endfunction
 
+au BufRead *.js call AUTOCOMPLETE_Init()
+"au InsertEnter *.js call AUTOCOMPLETE_InsertEnterHandler()
+au InsertLeave *.js call AUTOCOMPLETE_InsertLeaveHandler()
+
 set completefunc=AUTOCOMPLETE_CompleteFunction
 set completeopt=longest,menuone
 highlight Pmenu ctermfg=white ctermbg=green
 highlight PmenuSel ctermfg=white ctermbg=brown
 
-nnoremap <C-i> :call AUTOCOMPLETE_SetCurrentWord(expand("<cword>"))<CR>:call AUTOCOMPLETE_AddWordToWordList()<CR>
+"nnoremap <C-i> :call AUTOCOMPLETE_SetCurrentWord(expand("<cword>"))<CR>:call AUTOCOMPLETE_AddWordToWordList()<CR>
 
