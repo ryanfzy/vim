@@ -3,7 +3,7 @@ let b:bDebug = g:FALSE
 " key word auto completion
 
 let b:keys = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-let b:separators = "~`!@#$%^&*()_+-={}|[]\;':\"<>?,./ "
+let b:separators = "\~\!\@\#\$\%\^\&\*\(\)\_\+\-\=\{\}\[\]\\;\'\:\"\<\>\?\,\.\/\<space>"
 
 let b:AUTOCOMPLETE_eKey = {
     \ 'space' : "\<space>",
@@ -93,6 +93,7 @@ function AUTOCOMPLETE_DoesFindKeyword()
 endfunction
 
 " get list of words starting with b:currentWord
+" TODO: support fuzzy lookup
 function AUTCOMPLETE_GetWordList()
     echom "here"
     call Debug("AUTOCOMPLETE_GetWordList()")
@@ -105,29 +106,15 @@ function AUTCOMPLETE_GetWordList()
     return l:listMatchedWords
 endfunction
 
-
+" feed the word to autocomplete and 
+" return the key user just typed to the buffer
 function AUTOCOMPLETE_FeedKey(key)
-"    "echom "AUTOCOMPLETE_FeedKey: get key:" . a:key
-"    let l:retKey = get(b:AUTOCOMPLETE_eKey, a:key, a:key)
-"    if a:key =~ 'bs'
-"        let l:pos = col('.')-2 - GetStartPosOfCurrentWord()
-"        call AUTOCOMPLETE_RemoveCharFromWord(l:pos)
-"    elseif a:key =~ 'space' || a:key =~ ';'
-"        if AUTOCOMPLETE_IsCurrentWord("var") || AUTOCOMPLETE_IsCurrentWord("function")
-"            echom "AUTOCOMPLETE_FindKeyword():find var or function"
-"            call AUTOCOMPLETE_FindKeyword(g:TRUE)
-"        elseif AUTOCOMPLETE_DoesFindKeyword()
-"            echom "AUTOCOMPLETE_FindKeyword():find new word"
-"            call AUTOCOMPLETE_AddWordToWordList()
-"            call AUTOCOMPLETE_FindKeyword(g:FALSE)
-"        endif
-"        call AUTOCOMPLETE_ClearCurrentWord()
-"    else
-    "let l:wordsOfCurLine = GetListOfTokens(getline('.'))
-    "let l:indexOfCurWord = len(l:wordsOfCurLine)-1
-    "if AUTCOMPLETE_ShouldCallKeyWordHandlerFn(l:wordsOfCurLine, l:indexOfCurWord)
-       call AUTOCOMPLETE_AddCharToWord(a:key)
-    "endif
+    call Debug("AUTOCOMPLETE_FeedKey()")
+
+    let l:part = strpart(getline('.'), 0, col('.')-1) . a:key
+    let l:listWords = GetListOfTokens(l:part)
+    let l:curWord = l:listWords[len(l:listWords)-1]
+    call AUTOCOMPLETE_SetCurrentWord(l:curWord)
     return a:key
 endfunction
 
@@ -166,6 +153,7 @@ endfunction
 function AUTOCOMPLETE_RegisterKeyMap()
     call Debug("AUTOCOMPLETE_RegisterKeyMap()")
 
+    " map normal keys
     let l:strMap = "inoremap <silent> %s <C-r>=%s('%s')<CR>%s" 
     let l:feedFn = "AUTOCOMPLETE_FeedKey"
     let l:ShowPopupAndOriginalWord = "<C-x><C-u><C-n><C-p>"
@@ -174,14 +162,16 @@ function AUTOCOMPLETE_RegisterKeyMap()
         execute printf(l:strMap, k, l:feedFn, k, l:ShowPopupAndOriginalWord)
     endfor
 
-" we now only care about the alphanumeric keys
-"    let l:clearFn = "AUTOCOMPLETE_ClearKey"
-"    let l:listSeparators = [
-"        \ '+', '-', '*', '/', '(', ')', '[', ']', '{', '}', ';', ' '
-"        \ ]
-"    for k in l:listSeparators
-"        execute printf(l:strMap, k, ,l:clearFn, k, '');
-"    endfor
+    " map separator keys
+    let l:clearFn = "AUTOCOMPLETE_ClearKey"
+    for j in range(len(b:separators))
+        let k = b:separators[j]
+        if k =~ '\s'
+            let k = "<space>"
+        endif
+        echom printf(l:strMap, k, l:clearFn, k, '')
+        execute printf(l:strMap, k, l:clearFn, k, '')
+    endfor
 "
 "    let l:listSpecialKeys = ['space', 'bs']
 "    for sk in l:listSpecialKeys
