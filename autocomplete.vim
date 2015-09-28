@@ -120,7 +120,8 @@ endfunction
 " TODO: map autocomplete menu
 function AUTOCOMPLETE_RegisterKeyMapForPmenu()
     "navigate on the popup menu
-    execute "inoremap <C-h> <C-n>"
+    execute 'inoremap <C-j> <Down>'
+    execute 'inoremap <C-k> <Up>'
 
     "exit the popup menu
 endfunction
@@ -173,6 +174,7 @@ function AUTOCOMPLETE_RegisterKeyMap()
         execute printf(l:strMap, k, l:khFeedFn, k, '')
     endfor
 
+    call AUTOCOMPLETE_RegisterKeyMapForPmenu()
 endfunction
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
