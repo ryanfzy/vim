@@ -147,7 +147,9 @@ function AUTOCOMPLETE_FeedKeyHandlerIfMatch(sep)
     let l:curIndex = len(l:listWords)-1
 
     let l:fullListWords = GetListOfTokens(getline('.'))
-    call AUTOCOMPLETE_CallKeyWordHandlerFnIfMatch(l:fullListWords, l:curIndex)
+    if len(l:fullListWords) > 0
+        call AUTOCOMPLETE_CallKeyWordHandlerFnIfMatch(l:fullListWords, l:curIndex)
+    endif
     
     return a:sep
 endfunction
@@ -156,7 +158,7 @@ function AUTOCOMPLETE_RegisterKeyMap()
     call Debug("AUTOCOMPLETE_RegisterKeyMap()")
 
     " map normal keys
-    let l:strMap = "inoremap <silent> %s <C-r>=%s('%s')<CR>%s" 
+    let l:strMap = "inoremap <silent> %s <C-r>=%s(\"%s\")<CR>%s" 
     let l:autoFeedFn = "AUTOCOMPLETE_FeedAutoComplete"
     let l:ShowPopupAndOriginalWord = "<C-x><C-u><C-n><C-p>"
     for i in range(len(b:keys))
