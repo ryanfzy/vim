@@ -172,6 +172,8 @@ function AUTOCOMPLETE_RegisterKeyMap()
         let k = b:separators[j]
         if k =~ '\s'
             let k = "<space>"
+        else
+            let k =  '\'.k
         endif
         execute printf(l:strMap, k, l:khFeedFn, k, '')
     endfor
