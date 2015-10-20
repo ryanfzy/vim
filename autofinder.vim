@@ -18,6 +18,8 @@ let b:completeFn = function('AutoMockFn')
 let b:keyWordHanlderFn = function('AutoMockFn')
 let b:keyWordHandlerFnParams = ""
 
+let b:handlerFns = []
+
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 function AUTOCOMPLETE_CallKeyWordHandlerFnIfMatch(listWords, index)
     let l:param = b:keyWordHandlerFnParams
@@ -68,6 +70,10 @@ function AUTOCOMPLETE_SetKeyWordHandlerCmd(params)
 
     let l:dictParams = AUTOCOMPLETE_GetArgsDict(GetSubList(a:params, 1))
     let b:keyWordHandlerFnParams = l:dictParams['params']
+
+    " add the handler fn to handlerFns list
+    "let l:lst = [l:fnName, l:dictParams['params']]
+    let b:handlerFns = add(b:handlerFns, [l:fnName, l:dictParams['params']])
 endfunction
 
 function AUTOCOMPLETE_Match(word, pat)
@@ -191,11 +197,19 @@ function AUTOCOMPLETE_RunFinder()
     let l:listWords = GetListOfTokensOfCurrentFile()
 
     " run key word handler
-    let l:param = b:keyWordHandlerFnParams
+    "let l:param = b:keyWordHandlerFnParams
     for n in range(len(l:listWords))
-        if AUTOCOMPLETE_CheckWord(l:listWords, n, l:param)
-            call b:keyWordHandlerFn(l:listWords[n])        
-        endif
+        "if AUTOCOMPLETE_CheckWord(l:listWords, n, l:param)
+            "call b:keyWordHandlerFn(l:listWords[n])        
+        "endif
+        for fnIndex in range(len(b:handlerFns))
+            let l:fnParams = b:handlerFns[fnIndex]
+            let l:Fn = function(l:fnParams[0])
+            let l:param = l:fnParams[1]
+            if AUTOCOMPLETE_CheckWord(l:listWords, n, l:param)
+                call l:Fn(l:listWords[n])
+            endif
+        endfor
     endfor
 endfunction
 
