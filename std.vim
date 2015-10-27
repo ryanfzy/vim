@@ -108,10 +108,21 @@ endfunction
 "GetSubList(<list>, startIndex {, count})
 function GetSubList(list, start, ...)
     let l:end = len(a:list) - 1
-    if a:0 > 2
-        let l:end = a:start + a:2
+    if a:start > l:end+1
+        return []
+    elseif a:0 == 1
+        if a:1 < 1
+            return []
+        endif
+        let l:end = a:start + a:1 -1
     endif
-    return remove(a:list, a:start, l:end)
+    let l:returnList = []
+    for i in range(len(a:list))
+        if i >= a:start && i <= l:end
+            let l:returnList = add(l:returnList, a:list[i])
+        endif
+    endfor
+    return l:returnList
 endfunction
 
 function GetWordsOnCurLine()
@@ -151,3 +162,13 @@ function Debug(msg)
         echom a:msg
     endif
 endfunction
+
+function IsAnyChar(ch, listChars)
+    for chr in a:listChars
+        if a:ch =~ chr
+            return g:TRUE
+        endif
+    endfor
+    return g:FALSE
+endfunction
+
