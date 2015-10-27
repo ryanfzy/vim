@@ -135,6 +135,7 @@ function AUTOCOMPLETE_ParseAttrValue(attrValue, index)
         let l:ch = a:attrValue[l:index]
         let l:escape = g:FALSE
         let l:nextIndex = l:index+1
+        let l:listIndexesTmp = []
 
         " escape next character
         if l:ch =~ '\'
@@ -152,7 +153,9 @@ function AUTOCOMPLETE_ParseAttrValue(attrValue, index)
             let l:listSubValidValues = []
             if l:index == len(a:attrValue)-1
                 echom "end of list"
-                let l:value = l:value . l:ch
+                if !IsAnyChar(l:ch, ['(', ')', '&', '|'])
+                    let l:value = l:value . l:ch
+                endif
 
             elseif l:ch =~ '&' && !l:escape
                 let l:foundAnd = g:TRUE
@@ -165,6 +168,9 @@ function AUTOCOMPLETE_ParseAttrValue(attrValue, index)
                 echom string(l:listValidValuesAndIndex)
                 let l:listSubValidValues = l:listValidValuesAndIndex[0]
                 let l:nextIndex = l:listValidValuesAndIndex[1]
+                for listValidValues in l:listOfListValidValues
+                    let l:listIndexesTmp = add(l:listIndexesTmp, len(listValidValues))
+                endfor
             endif
 
             if len(l:listSubValidValues) < 1 && !IsEmptyString(l:value)
@@ -180,7 +186,9 @@ function AUTOCOMPLETE_ParseAttrValue(attrValue, index)
                         let l:listOfListValidValues = add(l:listOfListValidValues, l:listSubValidValues[i])
                     endfor
                 else
-                    let l:listIndexesTmp = l:listIndexes
+                    if len(l:listIndexesTmp) < 1
+                        let l:listIndexesTmp = l:listIndexes
+                    endif
                     let l:listIndexes = []
                     for i in range(len(l:listOfListValidValues))
                         for j in range(len(l:listSubValidValues))
@@ -211,6 +219,7 @@ function AUTOCOMPLETE_ParseAttrValue(attrValue, index)
             endif
 
             if l:ch =~ ')'
+                let l:addChar = g:FALSE
                 break
             endif
         endif
