@@ -19,6 +19,7 @@ let b:keyWordHanlderFn = function('AutoMockFn')
 let b:keyWordHandlerFnParams = ""
 
 let b:handlerFns = []
+let b:reservedChars = ['=', '&', '|']
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 function AUTOCOMPLETE_CallKeyWordHandlerFnIfMatch(listWords, index)
@@ -30,6 +31,15 @@ endfunction
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 " AddKey command
+" e.g. Autocmpl AddKey someKey someValue attrKey1=attrValue1 attrKey2=attrValue2
+" { someKey : 
+"   {
+"       'value' : someValue,
+"       attrKey1 : attrValue1,
+"       attrKey2 : attrValue2
+"   }
+"   ...
+" }
 function AUTOCOMPLETE_AddKeyCmd(params)
     call Debug("AUTOCOMPLETE_AddKeyCmd()")
     let l:key = a:params[0]
@@ -37,11 +47,13 @@ function AUTOCOMPLETE_AddKeyCmd(params)
     let l:value['value'] = a:params[1]
     if len(a:params) > 2
         for n in range(2, len(a:params)-1)
-            let l:keyValue = split(a:params[n], '=')
+            " \(\\\)\@<!= this matches =, doesn't match escaped \=
+            let l:keyValue = split(a:params[n], '\(\\\)\@<!=')
             let l:value[l:keyValue[0]] = l:keyValue[1]
         endfor
     endif
     let b:dictKeys[l:key] = l:value
+    echom string(b:dictKeys)
 endfunction
 
 " a user defined key is in format %(<key-name>)
@@ -102,6 +114,157 @@ function AUTOCOMPLETE_CheckWord(listWords, index, key)
     endif
 endfunction
 
+function AUTOCOMPLETE_ParseAttrValue(attrValue, index)
+    "echom a:attrValue.':'.a:index
+    "let l:listOfListValidValues = [[]]
+    let l:listOfListValidValues = []
+    let l:escapeNextChar = g:FALSE
+    let l:foundOr = g:FALSE
+    let l:listIndexes = [0]
+    let l:value = ''
+    let l:index = a:index
+
+    while l:index < len(a:attrValue)
+        "echom 'len:'.len(a:attrValue).'('.l:index.')'
+        "echom a:attrValue[l:index]
+        "echom 'value:'.l:value
+
+        let l:addChar = g:TRUE
+        let l:ch = a:attrValue[l:index]
+        let l:escape = g:FALSE
+        let l:nextIndex = l:index+1
+
+        " escape next character
+        if l:ch =~ '\'
+            let l:escapeNextChar = g:TRUE
+            let l:addChar = g:FALSE
+        " add the escaped character
+        elseif l:escapeNextChar
+            "let l:value = l:value . l:ch
+            let l:escapeNextChar = g:FALSE
+            let l:escape = g:TRUE
+        endif
+        " add value to each valid values in valid values list
+        if IsAnyChar(l:ch, ['(', ')', '&', '|']) || l:index == len(a:attrValue)-1
+            let l:addChar = g:FALSE
+            let l:listSubValidValues = []
+            if l:index == len(a:attrValue)-1
+                "echom "end of list"
+                let l:value = l:value . l:ch
+            elseif l:ch =~ '|' && !l:escape
+                let l:foundOr = g:TRUE
+            elseif l:ch =~ '(' && !l:escape
+                "echom 'found ('
+                let l:addChar = g:FALSE
+                let l:listValidValuesAndIndex = AUTOCOMPLETE_ParseAttrValue(a:attrValue, l:index+1)
+                "echom string(l:listValidValuesAndIndex)
+                let l:listSubValidValues = l:listValidValuesAndIndex[0]
+                let l:nextIndex = l:listValidValuesAndIndex[1]
+            endif
+
+            if len(l:listSubValidValues) < 1 && !IsEmptyString(l:value)
+                let l:listSubValidValues = [[l:value]]
+                "echom 'found no ('
+                "echom string(l:listSubValidValues)
+            endif
+
+            if len(l:listSubValidValues) > 0
+                if len(l:listOfListValidValues) < 1
+                    "echom "list has 0 len"
+                    for i in range(len(l:listSubValidValues))
+                        let l:listOfListValidValues = add(l:listOfListValidValues, l:listSubValidValues[i])
+                    endfor
+                else
+                    let l:listIndexesTmp = l:listIndexes
+                    let l:listIndexes = []
+                    for i in range(len(l:listOfListValidValues))
+                        for j in range(len(l:listSubValidValues))
+                            let l:listIndexes = add(l:listIndexes, len(l:listOfListValidValues[i]))
+                            if l:foundOr
+                                let l:foundOr = g:FALSE
+                                "echom "found |"
+                                "echom string(l:listOfListValidValues)
+                                "echom string(l:listIndexesTmp)
+                                let l:subList = GetSubList(l:listOfListValidValues[i], 0, l:listIndexesTmp[i])
+                                "echom 'substring:'.string(l:subList)
+                                let l:subList = extend(l:subList, l:listSubValidValues[j])
+                                let l:listOfListValidValues = add(l:listOfListValidValues, l:subList)
+                            else
+                                "echom "found no |"
+                                "echom string(l:listOfListValidValues)
+                                "echom string(l:listSubValidValues)
+                                let l:listOfListValidValues[i] = extend(l:listOfListValidValues[i], l:listSubValidValues[j])
+                            endif
+                        endfor
+                    endfor
+                endif
+                let l:value = ''
+            endif
+
+            if l:ch =~ ')'
+                break
+            endif
+        endif
+
+        " call itself recursively, start next sub-parse
+"        if l:ch =~ '(' && !l:escape
+"            let l:addChar = g:FALSE
+"            let l:listValidValuesAndIndex = AUTOCOMPLETE_ParseAttrValue(a:attrValue, l:index+1)
+"            "echom string(l:listValidValuesAndIndex)
+"            let l:listIndexesTmp = l:listIndexes
+"            let l:listIndexes = []
+"            "for listValidValues in l:listOfListValidValues
+"            for i in range(len(l:listOfListValidValues))
+"                for listSubValidValues in l:listValidValuesAndIndex[0]
+"                    let l:listIndexes = add(l:listIndexes, len(l:listOfListValidValues[i]))
+"                    if l:foundOr
+"                        let l:subList = GetSubList(l:listOfListValidValues[i], 0, l:listIndexesTmp[i]+1)
+"                        let l:subList = add(l:subList, l:value)
+"                        let l:listOfListValidValues = add(l:listOfListValidValues, l:subList)
+"                        let l:foundOr = g:FALSE
+"                    endif
+"                    let l:listOfListValidValues[i] = extend(l:listOfListValidValues[i], listSubValidValues)
+"                endfor
+"            endfor
+"            let l:index = l:listValidValuesAndIndex[1]
+"            if l:foundOr
+"                let l:foundOr = g:FALSE
+"            endif
+"            continue
+"        endif
+
+        if l:addChar
+            let l:value = l:value . l:ch
+        endif
+        let l:index = l:nextIndex
+    endwhile
+
+    return [l:listOfListValidValues, l:index+1]
+endfunction
+
+function AUTOCOMPLETE_ParseAttrValueMain(attrValue)
+    "echom "parse attr value main"
+    return AUTOCOMPLETE_ParseAttrValue(a:attrValue, 0)[0]
+endfunction
+
+function AUTOCOMPLETE_CheckAddKeyCmdBeforeAttr(listWords, index, listOfListValidValues)
+    let l:index = a:index
+    for listValidValues in a:listOfListValidValues
+        let l:bMatch = g:TRUE
+        for i in range(len(listValidValues)-1, 0, -1)
+            if l:index < 0 || !AUTOCOMPLETE_Match(a:listWords[l:index], listValidValues[i])
+                let l:bMatch = g:FALSE
+                break
+            endif
+            let l:index =- 1
+        endfor
+        if l:bMatch
+            return g:TRUE
+        endif
+    endfor
+    return g:FALSE
+endfunction
+
 function AUTOCOMPLETE_CheckWordFromKeyDict(listWords, index, key)
     call Debug("AUTOCOMPLETE_CheckWordFromKeyDict()")
     let l:dictValue = b:dictKeys[a:key]
@@ -120,11 +283,17 @@ function AUTOCOMPLETE_CheckWordFromKeyDict(listWords, index, key)
         if a:index < 1
             return g:FALSE
         endif
-        let l:listBeforeValues = split(l:dictValue['before'], '|')
-        let l:beforeWord = a:listWords[a:index-1]
-        if !AUTOCOMPLETE_Match(l:beforeWord, l:listBeforeValues)
+        "let l:listBeforeValues = split(l:dictValue['before'], '|')
+        "let l:beforeWord = a:listWords[a:index-1]
+        let l:listOfListValidValues = AUTOCOMPLETE_ParseAttrValueMain(l:dictValue['before'])
+        "echom string(l:listOfListValidValues)
+        "return g:FALSE
+        if !AUTOCOMPLETE_CheckAddKeyCmdBeforeAttr(a:listWords, a:index-1, l:listOfListValidValues)
             return g:FALSE
         endif
+        "if !AUTOCOMPLETE_Match(l:beforeWord, l:listBeforeValues)
+            "return g:FALSE
+        "endif
     endif
     return g:TRUE
 endfunction
