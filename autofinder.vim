@@ -23,10 +23,13 @@ let b:reservedChars = ['=', '&', '|']
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 function AUTOCOMPLETE_CallKeyWordHandlerFnIfMatch(listWords, index)
-    let l:param = b:keyWordHandlerFnParams
-    if AUTOCOMPLETE_CheckWord(a:listWords, a:index, l:param)
-        call b:keyWordHandlerFn(a:listWords[a:index])
-    endif
+    for fnParam in b:handlerFns
+        let l:HandlerFn = function(fnParam[0])
+        let l:param = fnParam[1]
+        if AUTOCOMPLETE_CheckWord(a:listWords, a:index, l:param)
+            call l:HandlerFn(a:listWords[a:index])
+        endif
+    endfor
 endfunction
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -381,27 +384,32 @@ endfunction
 function AUTOCOMPLETE_RunFinder()
     call Debug("AUTOCOMPLETE_Run()")
     let l:listWords = GetListOfTokensOfCurrentFile()
-
-    " run key word handler
-    "let l:param = b:keyWordHandlerFnParams
-    for n in range(len(l:listWords))
-        "if AUTOCOMPLETE_CheckWord(l:listWords, n, l:param)
-            "call b:keyWordHandlerFn(l:listWords[n])        
-        "endif
-        for fnIndex in range(len(b:handlerFns))
-            let l:fnParams = b:handlerFns[fnIndex]
-            echom string(l:fnParams)
-            let l:Fn = function(l:fnParams[0])
-            let l:param = l:fnParams[1]
-            if AUTOCOMPLETE_CheckWord(l:listWords, n, l:param)
-                call l:Fn(l:listWords[n])
-            endif
-        endfor
+    for i in range(len(l:listWords))
+        call AUTOCOMPLETE_CallKeyWordHandlerFnIfMatch(l:listWords, i)
     endfor
+
+"    " run key word handler
+"    "let l:param = b:keyWordHandlerFnParams
+"    for n in range(len(l:listWords))
+"        "if AUTOCOMPLETE_CheckWord(l:listWords, n, l:param)
+"            "call b:keyWordHandlerFn(l:listWords[n])        
+"        "endif
+"        for fnIndex in range(len(b:handlerFns))
+"            let l:fnParams = b:handlerFns[fnIndex]
+"            echom string(l:fnParams)
+"            let l:Fn = function(l:fnParams[0])
+"            let l:param = l:fnParams[1]
+"            if AUTOCOMPLETE_CheckWord(l:listWords, n, l:param)
+"                call l:Fn(l:listWords[n])
+"            endif
+"        endfor
+"    endfor
 endfunction
 
-" FIX: no longer use b:keyWordHandlerFnParams
+" not being used
 function AUTOCOMPLETE_ShouldCallKeyWordHandlerFn(listOfWord, index)
+    for fnParams in b:handlerFns
+    endfor
     let l:param = b:keyWordHandlerFnParams
     return AUTOCOMPLETE_CheckWord(a:listOfWords, a:index, l:param)
 endfunction
