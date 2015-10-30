@@ -68,6 +68,11 @@ function AUTOCOMPLETE_AddKeyCmd(params)
     echom string(l:value)
 endfunction
 
+function AUTOCOMPLETE_ParseAttrValueMain(attrValue)
+    "echom "parse attr value main"
+    return AUTOCOMPLETE_ParseAttrValue(a:attrValue, 0)[0]
+endfunction
+
 " parse the attribute value for 'before' and 'after'
 " e.g. before=a|b, this will return [['a'], ['b']]
 " e.g. before=a&b|c, this will return [['a', b'], ['a', 'c']]
@@ -260,12 +265,6 @@ function AUTOCOMPLETE_CheckWord(listWords, index, key)
     endif
 endfunction
 
-
-function AUTOCOMPLETE_ParseAttrValueMain(attrValue)
-    "echom "parse attr value main"
-    return AUTOCOMPLETE_ParseAttrValue(a:attrValue, 0)[0]
-endfunction
-
 function AUTOCOMPLETE_CheckAddKeyCmdBeforeAttr(listWords, index, listOfListValidValues)
     let l:index = a:index
     for listValidValues in a:listOfListValidValues
@@ -276,6 +275,25 @@ function AUTOCOMPLETE_CheckAddKeyCmdBeforeAttr(listWords, index, listOfListValid
                 break
             endif
             let l:index =- 1
+        endfor
+        if l:bMatch
+            return g:TRUE
+        endif
+    endfor
+    return g:FALSE
+endfunction
+
+function AUTOCOMPLETE_CheckAddKeyCmdAfterAttr(listWords, index, listOfListValidValues)
+    let l:index = a:index
+    let l:wordLen = len(a:listWords)
+    for listValidValues in a:listOfListValidValues
+        let l:bMatch = g:TRUE
+        for word in listValidValues
+            if l:index > l:wordLen-1 || !AUTOCOMPLETE_Match(a:listWords[l:index], word)
+                let l:bMatch = g:FALSE
+                break
+            endif
+            let l:index =+ 1
         endfor
         if l:bMatch
             return g:TRUE
@@ -302,18 +320,22 @@ function AUTOCOMPLETE_CheckWordFromKeyDict(listWords, index, key)
         if a:index < 1
             return g:FALSE
         endif
-        "let l:listBeforeValues = split(l:dictValue['before'], '|')
-        "let l:beforeWord = a:listWords[a:index-1]
-        "let l:listOfListValidValues = AUTOCOMPLETE_ParseAttrValueMain(l:dictValue['before'])
         let l:listOfListValidValues = l:dictValue['before']
         "echom string(l:listOfListValidValues)
-        "return g:FALSE
         if !AUTOCOMPLETE_CheckAddKeyCmdBeforeAttr(a:listWords, a:index-1, l:listOfListValidValues)
             return g:FALSE
         endif
-        "if !AUTOCOMPLETE_Match(l:beforeWord, l:listBeforeValues)
-            "return g:FALSE
-        "endif
+    endif
+    if has_key(l:dictValue, 'after')
+        " last word doesn't have after words
+        if a:index == len(a:listWords)-1
+            return g:FALSE
+        endif
+        let l:listOfListValidValues = l:dictValue['after']
+        "echom string(l:listOfListValidValues)
+        if !AUTOCOMPLETE_CheckAddKeyCmdAfterAttr(a:listWords, a:index+1, l:listOfListValidValues)
+            return g:FALSE
+        endif
     endif
     return g:TRUE
 endfunction
