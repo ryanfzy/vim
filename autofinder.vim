@@ -1,14 +1,4 @@
 
-"auto key params [^()]*
-"auto key lamFn \<function\>\(%(params)\)
-"auto key fn \<function\>\s+%(identifier)\(%(params)\)
-
-"auto scope global
-"auto scope function start=(%(lamFn)|%(fn))\s*\{ end=\}
-"auto scope for for\([^\)]\)\{%(forBody)\}
-"auto scope while while\([^\)]\)\{%(whileBody)\}
-
-
 function AutoMockFn()
     echom "mock"
 endfunction
@@ -55,7 +45,11 @@ function AUTOCOMPLETE_AddKeyCmd(params)
         for n in range(2, len(a:params)-1)
             " \(\\\)\@<!= this matches =, doesn't match escaped \=
             let l:keyValue = split(a:params[n], '\(\\\)\@<!=')
-            let l:value[l:keyValue[0]] = l:keyValue[1]
+            if len(l:keyValue) > 1
+                let l:value[l:keyValue[0]] = l:keyValue[1]
+            else
+                let l:value[l:keyValue[0]] = 'true'
+            endif
         endfor
     endif
     if has_key(l:value, 'before')
@@ -409,23 +403,6 @@ function AUTOCOMPLETE_RunFinder()
     for i in range(len(l:listWords))
         call AUTOCOMPLETE_CallKeyWordHandlerFnIfMatch(l:listWords, i)
     endfor
-
-"    " run key word handler
-"    "let l:param = b:keyWordHandlerFnParams
-"    for n in range(len(l:listWords))
-"        "if AUTOCOMPLETE_CheckWord(l:listWords, n, l:param)
-"            "call b:keyWordHandlerFn(l:listWords[n])        
-"        "endif
-"        for fnIndex in range(len(b:handlerFns))
-"            let l:fnParams = b:handlerFns[fnIndex]
-"            echom string(l:fnParams)
-"            let l:Fn = function(l:fnParams[0])
-"            let l:param = l:fnParams[1]
-"            if AUTOCOMPLETE_CheckWord(l:listWords, n, l:param)
-"                call l:Fn(l:listWords[n])
-"            endif
-"        endfor
-"    endfor
 endfunction
 
 " not being used
