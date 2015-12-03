@@ -1,5 +1,6 @@
 let b:gNumOfParns = 0
 highlight link myMatch Error
+let b:gOldSyn = {}
 
 "TODO: implement
 "   ( => [0]
@@ -37,14 +38,13 @@ function GetPatParns(line)
        endif
     endfor
 
-    echom "list:".string(l:listParns)
     for i in range(len(l:listParns))
         let l:iParn = l:listParns[i]
         if l:iParn == 0
             let l:listPatParns = add(l:listPatParns, 0)
         elseif l:iParn == 1
             let l:lenPatParns = len(l:listPatParns)
-            if type(l:listPatParns[l:lenParns-1]) != type([]) && l:listPatParns[l:lenPatParn-1] == 0
+            if type(l:listPatParns[l:lenPatParns-1]) != type([]) && l:listPatParns[l:lenPatParns-1] == 0
                 let l:listPatParns[l:lenPatParns-1] = 1
             else
                 let l:idx = 0
@@ -59,13 +59,9 @@ function GetPatParns(line)
                     let l:lst = add(l:lst, l:listPatParns[k])
                 endfor
                 let l:lst2 = []
-                "echom "l:idx:".l:idx
-                "echom "len(listPatParns:".len(l:listPatParns)
                 for m in range(l:idx+1, l:lenPatParns-1)
                     let l:lst2 = add(l:lst2, l:listPatParns[m])
                 endfor
-                "echom "l:lst:".string(l:lst)
-                "echom "l:lst2:".string(l:lst2)
                 let l:listPatParns = add(l:lst, l:lst2)
             endif
         endif
@@ -83,11 +79,78 @@ function GetNumOfParns(line)
     return l:iNumOfParns
 endfunction
 
+" given [0, 1, 0, [1]]
+" return [[0,1,0,[1]], [0,[1]]]
+function GetListOfListPatParns(listPatParns)
+    let l:listOfListPatParns = []
+    if len(a:listPatParns) > 0
+        for i in range(len(a:listPatParns)-1)
+            if type(a:listPatParns[i]) != type([]) && a:listPatParns[i] == 0
+                let l:listOfListPatParns = add(l:listOfListPatParns, GetSubList(a:listPatParns, i))
+            endif
+        endfor
+    endif
+    return l:listOfListPatParns
+endfunction
+
+function GetPatParnsForSyn(listPatParns)
+    if len(a:listPatParns) == 0
+        return ''
+    endif
+
+    let l:listPats = []
+    let l:patZero = '([^)]*'
+    let l:patOne = '([^)]*)'
+    let l:patList = '([^)]*%s[^)]*)'
+    for i in range(len(a:listPatParns))
+        if type(a:listPatParns[i]) == type([])
+            let l:pat = printf(l:patList, GetPatParnsForSyn(a:listPatParns[i]))
+            let l:listPats = add(l:listPats, l:pat)
+        elseif a:listPatParns[i] == 1
+            let l:listPats = add(l:listPats, l:patOne)
+        elseif a:listPatParns[i] == 0
+            let l:listPats = add(l:listPats, l:patZero)
+        endif
+    endfor
+    if (len(l:listPats) > 0)
+        return join(l:listPats, '[^(]*')
+    else
+        return l:listPats[0]
+    endif
+endfunction
+
+function FeedRoundParn2(ch)
+    let l:line = getline('.') . a:ch
+    let l:listPatParns = GetPatParns(l:line)
+    let l:listOfListPatParns = GetListOfListPatParns(l:listPatParns)
+    echom 'feed2:'.string(l:listOfListPatParns)
+    let l:fpat = '/([^)]*%s[^)]*$\&./'
+    if len(l:listOfListPatParns) > 0
+        for i in range(len(l:listOfListPatParns))
+            let l:lst = l:listOfListPatParns[i]
+            if has_key(b:gOldSyn, string(l:lst))
+                continue
+            else
+                let b:gOldSyn[string(l:lst)] = 1
+            endif
+            let l:pat = GetPatParnsForSyn(GetSubList(l:lst, 1))
+            let l:fpat2 = printf(l:fpat, l:pat)
+            let l:syn = 'syntax match myMatch '. l:fpat2
+            echom l:syn
+            execute l:syn
+        endfor
+    else
+        let l:fpat2 = printf(l:fpat, '')
+        let l:syn = 'syntax match myMatch '. l:fpat2
+        echom l:syn
+        execute l:syn
+    endif
+    return a:ch
+endfunction
+
 function FeedRoundParn(ch)
     let l:line = getline('.') . a:ch
     let l:iNumOfParns = GetNumOfParns(l:line)
-    let l:listPatParns = GetPatParns(l:line)
-    echom string(l:listPatParns)
     if l:iNumOfParns > b:gNumOfParns
         let b:gNumOfParns = l:iNumOfParns
         let l:pat = ''
