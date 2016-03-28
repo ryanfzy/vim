@@ -88,10 +88,10 @@ let b:JS_ReservedWords = [
     \ "throws", "transient", "true", "try", "typeof", "var", "void", "volatile",
     \ "while", "with", "yield"]
 
-source std.vim
-source autocomplete.vim
+"source std.vim
+"source autocomplete.vim
 "source ~/vim/javascript.vim
-source pmatch.vim
+"source pmatch.vim
 
-inoremap <silent> ( <C-r>=FeedRoundParn2('(')<CR>
-inoremap <silent> ) <C-r>=FeedRoundParn2(')')<CR>
+"inoremap <silent> ( <C-r>=FeedRoundParn2('(')<CR>
+"inoremap <silent> ) <C-r>=FeedRoundParn2(')')<CR>
