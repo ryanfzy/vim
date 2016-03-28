@@ -1,0 +1,97 @@
+
+set nocompatible
+
+let mapleader=";"
+
+" this will cause cursor moving right a position delay
+"nmap lb 0
+"nmap le $
+nmap <leader>w :w<cr>
+nmap <leader>q :q<cr>
+nmap <leader>WQ :wa<cr>:q<cr>
+nmap <leader>Q :qa!<cr>
+nnoremap <leader>lw <c-w>l
+nnoremap <leader>hw <c-w>h
+nnoremap <leader>kw <c-w>k
+nnoremap <leader>jw <c-w>j
+
+set incsearch
+set ignorecase
+set wildmenu
+
+set fileencoding=utf8
+set encoding=utf8
+
+set laststatus=2
+"set ruler
+"set cursorline
+"set cursorcolumn
+set number
+set hlsearch
+
+filetype indent on
+set expandtab
+set tabstop=4
+set softtabstop=4
+
+set backspace=indent,eol,start
+set nobackup
+set history=50
+set showcmd
+set cindent
+set smartcase
+set hid
+set shiftwidth=4
+set showmatch
+
+set nowrap
+syn on
+set confirm
+
+"status line
+set laststatus=2
+
+let mode = 'Normal'
+hi himode ctermbg=green ctermfg=white
+hi nohimode ctermbg=black ctermfg=white
+
+set statusline=%#himode#[%{mode}]%#nohimode#%f%m%r\ %=(%l,%c/%L)
+
+function SetMode(mode)
+    if a:mode == 'i'
+        let g:mode = 'Insert'
+        hi himode ctermbg=blue ctermfg=white
+    elseif a:mode == 'n' 
+        let g:mode = 'Nomral'
+        hi himode ctermbg=green ctermfg=white
+    elseif a:mode == 'r'
+        let g:mode = 'Replace'
+        hi himode ctermbg=yellow ctermfg=white
+    endif
+endfunction
+
+function EchoMode(mode)
+    g:mode = a:mode
+endfunction
+
+au InsertEnter * call SetMode(v:insertmode)
+au InsertLeave * call SetMode('n')
+
+let b:JS_ReservedWords = [
+    \ "abstract", "arguments", "boolean", "break", "byte", "case", "catch",
+    \ "char", "class", "const", "continue", "debugger", "default", "delete",
+    \ "do", "double", "else", "enum", "eval", "export", "extends", "false",
+    \ "final", "finally", "float", "for","function", "goto", "if", "implements",
+    \ "import", "in", "instanceof", "int", "interface", "let", "long", "native",
+    \ "new", "null", "package", "private", "protected", "public", "return",
+    \ "short", "static", "super", "switch", "synchronized", "this", "throw",
+    \ "throws", "transient", "true", "try", "typeof", "var", "void", "volatile",
+    \ "while", "with", "yield"]
+
+source ~/vim/std.vim
+"source ~/vim/autocomplete.vim
+"source ~/vim/javascript.vim
+source ~/vim/pmatch.vim
+
+inoremap <silent> ( <C-r>=FeedRoundParn2('(')<CR>
+inoremap <silent> ) <C-r>=FeedRoundParn2(')')<CR>
