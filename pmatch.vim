@@ -1,3 +1,20 @@
+" save current vim settings
+let s:save_cpo = &cpo
+" reset vim settings
+set cpo&vim
+
+" restore vim settings
+function! s:Restore_cpo()
+    let &cpo = s:save_cpo
+    unlet s:save_cpo
+endfunction
+
+" check if it is already loaded
+if exists("g:loaded_pmatch")
+    finish
+endif
+let g:loaded_pmatch = 1
+
 let b:gNumOfParns = 0
 highlight link myMatch Error
 let b:gOldSyn = {}
@@ -175,3 +192,6 @@ function FeedRoundParn(ch)
     endif
     return a:ch
 endfunction
+
+call s:Restore_cpo()
+
