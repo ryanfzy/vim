@@ -1,3 +1,10 @@
+" author: ryan feng
+
+if exists("g:loaded_stdlib")
+    finish
+endif
+let g:loaded_stdlib = 1
+
 let g:TRUE = 1
 let g:FALSE = 0
 

@@ -7,6 +7,11 @@ if exists("g:loaded_pmatch")
 endif
 let g:loaded_pmatch = 1
 
+if !exists("g:loaded_stdlib")
+    echom "ERROR: Pmatch depends on std.vim"
+    finish
+endif
+
 " save current vim settings
 let s:save_cpo = &cpo
 " reset vim settings
@@ -18,6 +23,7 @@ function! s:Restore_cpo()
     unlet s:save_cpo
 endfunction
 
+" plugin body
 let s:gNumOfParns = 0
 highlight link myMatch Error
 let s:gOldSyn = {}
@@ -196,11 +202,18 @@ function! s:FeedRoundParn(ch)
     return a:ch
 endfunction
 
+" Pmatch command processor
 function! s:CmdProcessor(args)
     inoremap <silent> ( <C-r>=<SID>FeedRoundParn2('(')<CR>
     inoremap <silent> ) <C-r>=<SID>FeedRoundParn2(')')<CR>
 endfunction
 
+" restore vim settings
 call s:Restore_cpo()
 
-command -narg=+ Pmatch :call s:CmdProcessor(<q-args>)
+" this command is for extending the functionalities of pmatch
+" TODO: in future, the user can set their own matchings
+"command -narg=+ Pmatch :call s:CmdProcessor(<q-args>)
+
+" run Pmatch
+call s:CmdProcessor('')
