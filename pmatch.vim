@@ -153,11 +153,12 @@ function! s:GetPatParnsForSyn(listPatParns)
     endif
 endfunction
 
-function! s:FeedRoundParn2(ch)
-    let l:line = getline('.') . a:ch
-    let l:listPatParns = s:GetPatParns(l:line)
+" find matchings in given line
+" TODO: we should find matching for given block of code, not actually a line of code
+function! s:RunPmatchForLine(line)
+    let l:listPatParns = s:GetPatParns(a:line)
     let l:listOfListPatParns = s:GetListOfListPatParns(l:listPatParns)
-    echom 'feed2:'.string(l:listOfListPatParns)
+    "echom 'feed2:'.string(l:listOfListPatParns)
     let l:fpat = '/([^)]*%s[^)]*$\&./'
     if len(l:listOfListPatParns) > 0
         for i in range(len(l:listOfListPatParns))
@@ -170,15 +171,20 @@ function! s:FeedRoundParn2(ch)
             let l:pat = s:GetPatParnsForSyn(GetSubList(l:lst, 1))
             let l:fpat2 = printf(l:fpat, l:pat)
             let l:syn = 'syntax match myMatch '. l:fpat2
-            echom l:syn
+            "echom l:syn
             execute l:syn
         endfor
     else
         let l:fpat2 = printf(l:fpat, '')
         let l:syn = 'syntax match myMatch '. l:fpat2
-        echom l:syn
+        "echom l:syn
         execute l:syn
     endif
+endfunction
+
+function! s:FeedRoundParn2(ch)
+    let l:line = getline('.') . a:ch
+    call s:RunPmatchForLine(l:line)
     return a:ch
 endfunction
 
@@ -213,6 +219,13 @@ function! s:FeedRoundParn(ch)
     return a:ch
 endfunction
 
+" run pmatch when opening a file
+function! s:RunPmatchWhenOpenFile()
+    let listOfLines = StdGetListOfLinesOfCurrentFile()
+    for i in range(len(listOfLines))
+        call s:RunPmatchForLine(listOfLines[i])
+    endfor
+endfunction
 
 """"""""""""""""""""""""""""""""""""""""""
 " end of plugin body
@@ -233,3 +246,6 @@ call s:Restore_cpo()
 
 " run Pmatch
 call s:CmdProcessor('')
+
+" run pmatch when opening a file
+au BufRead * call <SID>RunPmatchWhenOpenFile()
