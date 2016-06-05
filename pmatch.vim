@@ -1,3 +1,12 @@
+" author: ryan feng
+
+
+" check if it is already loaded
+if exists("g:loaded_pmatch")
+    finish
+endif
+let g:loaded_pmatch = 1
+
 " save current vim settings
 let s:save_cpo = &cpo
 " reset vim settings
@@ -9,15 +18,9 @@ function! s:Restore_cpo()
     unlet s:save_cpo
 endfunction
 
-" check if it is already loaded
-if exists("g:loaded_pmatch")
-    finish
-endif
-let g:loaded_pmatch = 1
-
-let b:gNumOfParns = 0
+let s:gNumOfParns = 0
 highlight link myMatch Error
-let b:gOldSyn = {}
+let s:gOldSyn = {}
 
 "TODO: implement
 "   ( => [0]
@@ -27,7 +30,7 @@ let b:gOldSyn = {}
 "   ((()()) => [0,[1,1]]
 "   ((( => [0,0,0]
 "   (()((()) => [0,1,0,[1]]
-function GetPatParns(line)
+function! s:GetPatParns(line)
     let l:listPatParns = []
     let l:listParns = []
     let l:bEscaped = g:FALSE
@@ -86,7 +89,7 @@ function GetPatParns(line)
     return l:listPatParns
 endfunction
 
-function GetNumOfParns(line)
+function! s:GetNumOfParns(line)
     let l:iNumOfParns = 0
     for i in range(len(a:line))
         if a:line[i] =~ '('
@@ -98,7 +101,7 @@ endfunction
 
 " given [0, 1, 0, [1]]
 " return [[0,1,0,[1]], [0,[1]]]
-function GetListOfListPatParns(listPatParns)
+function! s:GetListOfListPatParns(listPatParns)
     let l:listOfListPatParns = []
     if len(a:listPatParns) > 0
         for i in range(len(a:listPatParns)-1)
@@ -110,7 +113,7 @@ function GetListOfListPatParns(listPatParns)
     return l:listOfListPatParns
 endfunction
 
-function GetPatParnsForSyn(listPatParns)
+function! s:GetPatParnsForSyn(listPatParns)
     if len(a:listPatParns) == 0
         return ''
     endif
@@ -121,7 +124,7 @@ function GetPatParnsForSyn(listPatParns)
     let l:patList = '([^)]*%s[^)]*)'
     for i in range(len(a:listPatParns))
         if type(a:listPatParns[i]) == type([])
-            let l:pat = printf(l:patList, GetPatParnsForSyn(a:listPatParns[i]))
+            let l:pat = printf(l:patList, s:GetPatParnsForSyn(a:listPatParns[i]))
             let l:listPats = add(l:listPats, l:pat)
         elseif a:listPatParns[i] == 1
             let l:listPats = add(l:listPats, l:patOne)
@@ -136,21 +139,21 @@ function GetPatParnsForSyn(listPatParns)
     endif
 endfunction
 
-function FeedRoundParn2(ch)
+function! s:FeedRoundParn2(ch)
     let l:line = getline('.') . a:ch
-    let l:listPatParns = GetPatParns(l:line)
-    let l:listOfListPatParns = GetListOfListPatParns(l:listPatParns)
+    let l:listPatParns = s:GetPatParns(l:line)
+    let l:listOfListPatParns = s:GetListOfListPatParns(l:listPatParns)
     echom 'feed2:'.string(l:listOfListPatParns)
     let l:fpat = '/([^)]*%s[^)]*$\&./'
     if len(l:listOfListPatParns) > 0
         for i in range(len(l:listOfListPatParns))
             let l:lst = l:listOfListPatParns[i]
-            if has_key(b:gOldSyn, string(l:lst))
+            if has_key(s:gOldSyn, string(l:lst))
                 continue
             else
-                let b:gOldSyn[string(l:lst)] = 1
+                let s:gOldSyn[string(l:lst)] = 1
             endif
-            let l:pat = GetPatParnsForSyn(GetSubList(l:lst, 1))
+            let l:pat = s:GetPatParnsForSyn(GetSubList(l:lst, 1))
             let l:fpat2 = printf(l:fpat, l:pat)
             let l:syn = 'syntax match myMatch '. l:fpat2
             echom l:syn
@@ -165,20 +168,20 @@ function FeedRoundParn2(ch)
     return a:ch
 endfunction
 
-function FeedRoundParn(ch)
+function! s:FeedRoundParn(ch)
     let l:line = getline('.') . a:ch
-    let l:iNumOfParns = GetNumOfParns(l:line)
-    if l:iNumOfParns > b:gNumOfParns
-        let b:gNumOfParns = l:iNumOfParns
+    let l:iNumOfParns = s:GetNumOfParns(l:line)
+    if l:iNumOfParns > s:gNumOfParns
+        let s:gNumOfParns = l:iNumOfParns
         let l:pat = ''
-        if b:gNumOfParns < 2
+        if s:gNumOfParns < 2
             let l:pat = '/([^)]*$\&./'
         else
             let l:patParn = '([^)]*)'
             let l:patNestedParn = '([^)]*%s[^)]*%s'
             let l:pat = l:patParn
-            for i in range(b:gNumOfParns-1)
-                if i < b:gNumOfParns - 2
+            for i in range(s:gNumOfParns-1)
+                if i < s:gNumOfParns - 2
                     let l:pat = printf(l:patNestedParn, l:pat, ')')
                 else
                     let l:pat = printf(l:patNestedParn, l:pat, '')
@@ -193,5 +196,11 @@ function FeedRoundParn(ch)
     return a:ch
 endfunction
 
+function! s:CmdProcessor(args)
+    inoremap <silent> ( <C-r>=<SID>FeedRoundParn2('(')<CR>
+    inoremap <silent> ) <C-r>=<SID>FeedRoundParn2(')')<CR>
+endfunction
+
 call s:Restore_cpo()
 
+command -narg=+ Pmatch :call s:CmdProcessor(<q-args>)
