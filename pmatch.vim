@@ -7,6 +7,7 @@ if exists("g:loaded_pmatch")
 endif
 let g:loaded_pmatch = 1
 
+" this plugin depends on std.vim
 if !exists("g:loaded_stdlib")
     echom "ERROR: Pmatch depends on std.vim"
     finish
@@ -23,7 +24,10 @@ function! s:Restore_cpo()
     unlet s:save_cpo
 endfunction
 
+""""""""""""""""""""""""""""""""""""""""""
 " plugin body
+""""""""""""""""""""""""""""""""""""""""""
+
 let s:gNumOfParns = 0
 highlight link myMatch Error
 let s:gOldSyn = {}
@@ -49,7 +53,11 @@ function! s:GetPatParns(line)
            elseif l:ch =~ '('
                let l:listParns = add(l:listParns, 0)
            elseif l:ch =~ ')'
-               let l:listParns = add(l:listParns, 1)
+               " for now we ignore all ) if there is no ( ever found
+               " TODO: need to hilight unmatching ) as well
+               if len(l:listParns) > 0 
+                   let l:listParns = add(l:listParns, 1)
+               endif
            endif
        else
            if l:ch =~ '\'
@@ -176,6 +184,9 @@ endfunction
 
 function! s:FeedRoundParn(ch)
     let l:line = getline('.') . a:ch
+    " by default it is line based so pass the line here
+    " TODO: pmatch should support block based, so matching will be
+    "       work in a block of code instead of a line
     let l:iNumOfParns = s:GetNumOfParns(l:line)
     if l:iNumOfParns > s:gNumOfParns
         let s:gNumOfParns = l:iNumOfParns
@@ -201,6 +212,11 @@ function! s:FeedRoundParn(ch)
     endif
     return a:ch
 endfunction
+
+
+""""""""""""""""""""""""""""""""""""""""""
+" end of plugin body
+""""""""""""""""""""""""""""""""""""""""""
 
 " Pmatch command processor
 function! s:CmdProcessor(args)
