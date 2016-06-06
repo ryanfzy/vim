@@ -32,75 +32,110 @@ let s:gNumOfParns = 0
 highlight link myMatch Error
 let s:gOldSyn = {}
 
-"TODO: implement
-"   ( => [0]
-"   () => [1]
-"   (() => [0,1]
-"   (()() => [0,1,1]
-"   ((()()) => [0,[1,1]]
-"   ((( => [0,0,0]
-"   (()((()) => [0,1,0,[1]]
-function! s:GetPatParns(line)
-    let l:listPatParns = []
-    let l:listParns = []
-    let l:bEscaped = g:FALSE
-    let l:bFoundString = g:FALSE
+" this translate string to a list of numbers, ( to 0 and ) to 1
+" ( => [0]
+" ) => [1]
+" () => [0,1]
+" )( => [1,0]
+function! s:StrToListParns(line)
+    let listParns = []
+    let bEscaped = g:FALSE
+    let bFoundString = g:FALSE
     for i in range(len(a:line))
-       let l:ch = a:line[i] 
-       if !l:bFoundString
-           if l:ch =~ '"' || l:ch =~ "'"
-               let l:bFoundString = g:TRUE
-           elseif l:ch =~ '('
-               let l:listParns = add(l:listParns, 0)
-           elseif l:ch =~ ')'
-               " for now we ignore all ) if there is no ( ever found
-               " TODO: need to hilight unmatching ) as well
-               if len(l:listParns) > 0 
-                   let l:listParns = add(l:listParns, 1)
-               endif
+       let ch = a:line[i] 
+       if !bFoundString
+           if ch =~ '"' || ch =~ "'"
+               let bFoundString = g:TRUE
+           elseif ch =~ '('
+               let listParns = add(listParns, 0)
+           elseif ch =~ ')'
+               let listParns = add(listParns, 1)
            endif
+       " ignore parns in strings (text between " and ")
        else
-           if l:ch =~ '\'
-               let l:bEscaped = g:TRUE
-           elseif l:ch =~ '"' || l:ch =~ "'"
-               if l:bEscaped
-                   let l:bEscaped = g:FALSE
+           " ignore any character after \ including "
+           if ch =~ '\'
+               let bEscaped = g:TRUE
+           elseif ch =~ '"' || ch =~ "'"
+               if bEscaped
+                   let bEscaped = g:FALSE
                else
-                   let l:bFoundString = g:FALSE
+                   let bFoundString = g:FALSE
                endif
            endif
        endif
     endfor
+    return listParns
+endfunction
 
-    for i in range(len(l:listParns))
-        let l:iParn = l:listParns[i]
-        if l:iParn == 0
-            let l:listPatParns = add(l:listPatParns, 0)
-        elseif l:iParn == 1
-            let l:lenPatParns = len(l:listPatParns)
-            if type(l:listPatParns[l:lenPatParns-1]) != type([]) && l:listPatParns[l:lenPatParns-1] == 0
-                let l:listPatParns[l:lenPatParns-1] = 1
+" this translates list of parns to list of list parns
+" [0,1] => [2]
+" [0,0,1] => [0,2]
+" [0,1,1] => [2,1]
+" [0,0,1,1] => [[2]]
+function! s:ListParnsToListOfListParns(listParns)
+    let listPatParns = []
+    for i in range(len(a:listParns))
+        let iParn = a:listParns[i]
+        if iParn == 0
+            let listPatParns = add(listPatParns, 0)
+        elseif iParn == 1
+            let lenPatParns = len(listPatParns)
+
+            " in case there is no left-parn but we found a right-parn
+            if lenPatParns < 1
+                let listPatParns = add(listPatParns, 1)
+
+            " trying to find the corresponding left-parn
             else
-                let l:idx = 0
-                for j in range(l:lenPatParns-1, 0, -1)
-                    if type(l:listPatParns[j]) != type([]) && l:listPatParns[j] == 0
+                let idx = -1
+                for j in range(lenPatParns-1, 0, -1)
+                    if type(listPatParns[j]) != type([]) && listPatParns[j] == 0
                         let l:idx = j
                         break
                     endif
                 endfor
-                let l:lst = []
-                for k in range(l:idx)
-                    let l:lst = add(l:lst, l:listPatParns[k])
-                endfor
-                let l:lst2 = []
-                for m in range(l:idx+1, l:lenPatParns-1)
-                    let l:lst2 = add(l:lst2, l:listPatParns[m])
-                endfor
-                let l:listPatParns = add(l:lst, l:lst2)
+                " in case the left-parn the left-next to it
+                if idx == lenPatParns-1
+                    let listPatParns[lenPatParns-1] = 2
+                " in case there is no corresponding left-parn
+                elseif idx == -1
+                    let listPatParns = add(listPatParns, 1)
+                " found the left-parn so add it to the list
+                else
+                    let lst = []
+                    for k in range(idx)
+                        let lst = add(lst, listPatParns[k])
+                    endfor
+                    let lst2 = []
+                    for m in range(idx+1, lenPatParns-1)
+                        let lst2 = add(lst2, listPatParns[m])
+                    endfor
+                    let listPatParns = add(lst, lst2)
+                endif
             endif
         endif
     endfor
-    return l:listPatParns
+    return listPatParns
+endfunction
+
+" this translate a string to a list of list of parns
+"   ( => [0]
+"   ) => [1]
+"   () => [2]
+"   (() => [0,2]
+"   ()) => [2,1]
+"   (()() => [0,2,2]
+"   ()()) => [2,2,1]
+"   ((()()) => [0,[2,2]]
+"   (()())) => [[2,2],1]
+"   ((( => [0,0,0]
+"   ))) => [1,1,1]
+"   (()((()) => [0,2,0,[2]]
+function! s:GetPatParns(line)
+    let listParns = s:StrToListParns(a:line)
+    let listPatParns = s:ListParnsToListOfListParns(listParns)
+    return listPatParns
 endfunction
 
 function! s:GetNumOfParns(line)
@@ -113,14 +148,38 @@ function! s:GetNumOfParns(line)
     return l:iNumOfParns
 endfunction
 
-" given [0, 1, 0, [1]]
-" return [[0,1,0,[1]], [0,[1]]]
+function! s:GetSubListForOne(list, idx)
+    if a:idx > len(a:list)-1
+        return []
+    endif
+    let listRet = [a:list[a:idx]]
+    if a:idx < 1
+        return listRet
+    endif
+    for i in range(a:idx-1, 0, -1)
+        "if type(a:list[i]) != type([]) && a:list[i] == 1
+            "break
+        "else
+            let listRet = add(listRet, a:list[i])
+        "endif
+    endfor
+    return reverse(listRet)
+endfunction
+
+" get a list that we need to translate to regex
+" [0,2,0,[2]] => [[0,2,0,[2]], [0,[2]]]
+" [1,2,1,[2]] => [[1], [2,1]]
+" [1,2,0,[2]] => [[1], [0,[2]]
 function! s:GetListOfListPatParns(listPatParns)
     let l:listOfListPatParns = []
     if len(a:listPatParns) > 0
-        for i in range(len(a:listPatParns)-1)
-            if type(a:listPatParns[i]) != type([]) && a:listPatParns[i] == 0
-                let l:listOfListPatParns = add(l:listOfListPatParns, GetSubList(a:listPatParns, i))
+        for i in range(len(a:listPatParns))
+            if type(a:listPatParns[i]) != type([])
+                if a:listPatParns[i] == 0
+                    let l:listOfListPatParns = add(l:listOfListPatParns, GetSubList(a:listPatParns, i))
+                elseif a:listPatParns[i] == 1
+                    let l:listOfListPatParns = add(l:listOfListPatParns, s:GetSubListForOne(a:listPatParns, i))
+                endif
             endif
         endfor
     endif
@@ -128,38 +187,63 @@ function! s:GetListOfListPatParns(listPatParns)
 endfunction
 
 function! s:GetPatParnsForSyn(listPatParns)
+    echom 'getpatparnsforsyn:'.string(a:listPatParns)
     if len(a:listPatParns) == 0
         return ''
     endif
 
     let l:listPats = []
-    let l:patZero = '([^)]*'
-    let l:patOne = '([^)]*)'
-    let l:patList = '([^)]*%s[^)]*)'
+    let l:patZero = '([^()]*'
+    let l:patOne = ')'
+    let l:patTwo = '([^()]*)'
+    let l:patList = '([^()]*%s[^()]*)'
     for i in range(len(a:listPatParns))
         if type(a:listPatParns[i]) == type([])
             let l:pat = printf(l:patList, s:GetPatParnsForSyn(a:listPatParns[i]))
             let l:listPats = add(l:listPats, l:pat)
-        elseif a:listPatParns[i] == 1
-            let l:listPats = add(l:listPats, l:patOne)
+        elseif a:listPatParns[i] == 2
+            let l:listPats = add(l:listPats, l:patTwo)
         elseif a:listPatParns[i] == 0
             let l:listPats = add(l:listPats, l:patZero)
+        elseif a:listPatParns[i] == 1
+            let l:listPats = add(l:listPats, l:patOne)
         endif
     endfor
     if (len(l:listPats) > 0)
-        return join(l:listPats, '[^(]*')
+        return join(l:listPats, '[^()]*')
     else
         return l:listPats[0]
     endif
 endfunction
 
+function! s:GetPatParnsZeroForSyn(listPatParns)
+    let l:fpat = '/([^()]*%s[^()]*$\&./'
+    let l:pat = s:GetPatParnsForSyn(GetSubList(a:listPatParns, 1))
+    let l:fpat2 = printf(l:fpat, l:pat)
+    let l:syn = 'syntax match myMatch '. l:fpat2
+    "echom l:syn
+    execute l:syn
+endfunction
+
+function! s:GetPatParnsOneForSyn(listPatParns)
+    let fpat = '/\(^[^()]*%s[^()]*\)\@<=)/'
+    call remove(a:listPatParns, len(a:listPatParns)-1)
+    let l:pat = s:GetPatParnsForSyn(a:listPatParns)
+    let l:fpat2 = printf(l:fpat, l:pat)
+    let l:syn = 'syntax match myMatch '. l:fpat2
+    echom l:syn
+    execute l:syn
+endfunction
+
 " find matchings in given line
 " TODO: we should find matching for given block of code, not actually a line of code
 function! s:RunPmatchForLine(line)
+    echom 'line:'.a:line
     let l:listPatParns = s:GetPatParns(a:line)
+    echom 'listPatParns:'.string(listPatParns)
     let l:listOfListPatParns = s:GetListOfListPatParns(l:listPatParns)
-    "echom 'feed2:'.string(l:listOfListPatParns)
-    let l:fpat = '/([^)]*%s[^)]*$\&./'
+    echom 'listOfListPatParns:'.string(l:listOfListPatParns)
+    let l:fpat = '/([^()]*%s[^()]*$\&./'
     if len(l:listOfListPatParns) > 0
         for i in range(len(l:listOfListPatParns))
             let l:lst = l:listOfListPatParns[i]
@@ -167,12 +251,17 @@ function! s:RunPmatchForLine(line)
                 continue
             else
                 let s:gOldSyn[string(l:lst)] = 1
+                if type(l:lst[0]) != type([]) && l:lst[0] == 0
+                    call s:GetPatParnsZeroForSyn(l:lst)
+                else
+                    call s:GetPatParnsOneForSyn(l:lst)
+                endif
             endif
-            let l:pat = s:GetPatParnsForSyn(GetSubList(l:lst, 1))
-            let l:fpat2 = printf(l:fpat, l:pat)
-            let l:syn = 'syntax match myMatch '. l:fpat2
+            "let l:pat = s:GetPatParnsForSyn(GetSubList(l:lst, 1))
+            "let l:fpat2 = printf(l:fpat, l:pat)
+            "let l:syn = 'syntax match myMatch '. l:fpat2
             "echom l:syn
-            execute l:syn
+            "execute l:syn
         endfor
     else
         let l:fpat2 = printf(l:fpat, '')
@@ -183,25 +272,28 @@ function! s:RunPmatchForLine(line)
 endfunction
 
 function! s:FeedRoundParn2(ch)
-    let l:line = getline('.') . a:ch
+    " make sure ch will be inserted into the correct position
+    let line = getline('.')
+    let line = strpart(line, 0, col('.')-1) . a:ch . strpart(line, col('.')-1)
+
+    " by default it is line based so pass the line here
+    " TODO: pmatch should support block based, so matching will be
+    "       work in a block of code instead of a line
     call s:RunPmatchForLine(l:line)
     return a:ch
 endfunction
 
 function! s:FeedRoundParn(ch)
     let l:line = getline('.') . a:ch
-    " by default it is line based so pass the line here
-    " TODO: pmatch should support block based, so matching will be
-    "       work in a block of code instead of a line
     let l:iNumOfParns = s:GetNumOfParns(l:line)
     if l:iNumOfParns > s:gNumOfParns
         let s:gNumOfParns = l:iNumOfParns
         let l:pat = ''
         if s:gNumOfParns < 2
-            let l:pat = '/([^)]*$\&./'
+            let l:pat = '/([^()]*$\&./'
         else
-            let l:patParn = '([^)]*)'
-            let l:patNestedParn = '([^)]*%s[^)]*%s'
+            let l:patParn = '([^()]*)'
+            let l:patNestedParn = '([^()]*%s[^()]*%s'
             let l:pat = l:patParn
             for i in range(s:gNumOfParns-1)
                 if i < s:gNumOfParns - 2
@@ -210,7 +302,7 @@ function! s:FeedRoundParn(ch)
                     let l:pat = printf(l:patNestedParn, l:pat, '')
                 endif
             endfor
-            let l:pat = '/' . l:pat . '\($\|\([^(]*(\)\)\&./'
+            let l:pat = '/' . l:pat . '\($\|\([^()]*(\)\)\&./'
         endif
         let l:syn = 'syntax match myMatch ' . l:pat
         "echom l:syn
