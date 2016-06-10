@@ -31,6 +31,7 @@ endfunction
 let s:gNumOfParns = 0
 highlight link myMatch Error
 let s:gOldSyn = {}
+let s:gMatches = {}
 
 " this translate string to a list of numbers, ( to 0 and ) to 1
 " ( => [0]
@@ -288,8 +289,24 @@ endfunction
 
 " Pmatch command processor
 function! s:CmdProcessor(args)
-    inoremap <silent> ( <C-r>=<SID>FeedParn('(')<CR>
-    inoremap <silent> ) <C-r>=<SID>FeedParn(')')<CR>
+    let syn = "inoremap <silent> %s <C-r>=<SID>FeedParn('%s')<CR>"
+
+    let listCmd = StdParseCmd(a:args)
+    if len(listCmd) > 1
+        if listCmd[0] =~ 'addMatch'
+            let dictParams = listCmd[1]
+            let leftParn = dictParams['left']
+            let rightParn = dictParams['right']
+            let s:gMatches[leftParn] = dictParams
+            let s:gMatches[rightParn] = dictParams
+            let syn1 = printf(syn, leftParn, leftParn)
+            let syn2 = printf(syn, rightParn, rightParn)
+            execute syn1
+            execute syn2
+        endif
+    endif
+    "inoremap <silent> ( <C-r>=<SID>FeedParn('(')<CR>
+    "inoremap <silent> ) <C-r>=<SID>FeedParn(')')<CR>
 endfunction
 
 " restore vim settings
@@ -297,10 +314,10 @@ call s:Restore_cpo()
 
 " this command is for extending the functionalities of pmatch
 " TODO: in future, the user can set their own matchings
-"command -narg=+ Pmatch :call s:CmdProcessor(<q-args>)
+command -narg=+ Pmatch :call s:CmdProcessor(<q-args>)
 
 " run Pmatch
-call s:CmdProcessor('')
+"call s:CmdProcessor('')
 
 " run pmatch when opening a file
 au BufRead * call <SID>RunPmatchWhenOpenFile()

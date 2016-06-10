@@ -92,6 +92,10 @@ function GetListOfTokensOfCurrentFile()
     return l:listTokens
 endfunction
 
+function! StdGetListOfLinesOfCurrentFile()
+    return getbufline('.', 1, '$')
+endfunction
+
 function GetListAsString(list)
     return string(list)
 "    let l:str = "["
@@ -179,3 +183,28 @@ function IsAnyChar(ch, listChars)
     return g:FALSE
 endfunction
 
+function! s:listOfKeyValueStringToDictOfKeyValue(listOfKeyValueString)
+    let dictKeyValue = {}
+    for i in range(len(a:listOfKeyValueString))
+        let listKeyValue = split(a:listOfKeyValueString[i], '=')
+        if len(listKeyValue) > 1
+            let dictKeyValue[listKeyValue[0]] = listKeyValue[1]
+        else
+            let dictKeyValue[listKeyValue[0]] = ''
+        endif
+    endfor
+    return dictKeyValue
+endfunction
+
+" parse cmd string to dict
+function! StdParseCmd(cmd)
+    if len(a:cmd) < 1
+        return []
+    endif
+
+    let listTokens = split(a:cmd)
+    let cmdName = listTokens[0]
+    let listCmdParams = GetSubList(listTokens, 1)
+    let dictParams = s:listOfKeyValueStringToDictOfKeyValue(listCmdParams)
+    return [cmdName, dictParams]
+endfunction
