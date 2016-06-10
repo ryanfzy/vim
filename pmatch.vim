@@ -95,13 +95,14 @@ function! s:ListParnsToListOfListParns(listParns)
                         break
                     endif
                 endfor
-                " in case the left-parn the left-next to it
+                " in case the left-parn is left-next to it
                 if idx == lenPatParns-1
                     let listPatParns[lenPatParns-1] = 2
                 " in case there is no corresponding left-parn
                 elseif idx == -1
                     let listPatParns = add(listPatParns, 1)
                 " found the left-parn so add it to the list
+                " TODO: this code could be refactored`
                 else
                     let lst = []
                     for k in range(idx)
@@ -136,16 +137,6 @@ function! s:GetPatParns(line)
     let listParns = s:StrToListParns(a:line)
     let listPatParns = s:ListParnsToListOfListParns(listParns)
     return listPatParns
-endfunction
-
-function! s:GetNumOfParns(line)
-    let l:iNumOfParns = 0
-    for i in range(len(a:line))
-        if a:line[i] =~ '('
-            let l:iNumOfParns = l:iNumOfParns + 1
-        endif
-    endfor
-    return l:iNumOfParns
 endfunction
 
 function! s:GetSubListForOne(list, idx)
@@ -187,7 +178,7 @@ function! s:GetListOfListPatParns(listPatParns)
 endfunction
 
 function! s:GetPatParnsForSyn(listPatParns)
-    echom 'getpatparnsforsyn:'.string(a:listPatParns)
+    "echom 'getpatparnsforsyn:'.string(a:listPatParns)
     if len(a:listPatParns) == 0
         return ''
     endif
@@ -231,18 +222,18 @@ function! s:GetPatParnsOneForSyn(listPatParns)
     let l:pat = s:GetPatParnsForSyn(a:listPatParns)
     let l:fpat2 = printf(l:fpat, l:pat)
     let l:syn = 'syntax match myMatch '. l:fpat2
-    echom l:syn
+    "echom l:syn
     execute l:syn
 endfunction
 
 " find matchings in given line
 " TODO: we should find matching for given block of code, not actually a line of code
 function! s:RunPmatchForLine(line)
-    echom 'line:'.a:line
+    "echom 'line:'.a:line
     let l:listPatParns = s:GetPatParns(a:line)
-    echom 'listPatParns:'.string(listPatParns)
+    "echom 'listPatParns:'.string(listPatParns)
     let l:listOfListPatParns = s:GetListOfListPatParns(l:listPatParns)
-    echom 'listOfListPatParns:'.string(l:listOfListPatParns)
+    "echom 'listOfListPatParns:'.string(l:listOfListPatParns)
     let l:fpat = '/([^()]*%s[^()]*$\&./'
     if len(l:listOfListPatParns) > 0
         for i in range(len(l:listOfListPatParns))
@@ -271,7 +262,7 @@ function! s:RunPmatchForLine(line)
     endif
 endfunction
 
-function! s:FeedRoundParn2(ch)
+function! s:FeedParn(ch)
     " make sure ch will be inserted into the correct position
     let line = getline('.')
     let line = strpart(line, 0, col('.')-1) . a:ch . strpart(line, col('.')-1)
@@ -280,34 +271,6 @@ function! s:FeedRoundParn2(ch)
     " TODO: pmatch should support block based, so matching will be
     "       work in a block of code instead of a line
     call s:RunPmatchForLine(l:line)
-    return a:ch
-endfunction
-
-function! s:FeedRoundParn(ch)
-    let l:line = getline('.') . a:ch
-    let l:iNumOfParns = s:GetNumOfParns(l:line)
-    if l:iNumOfParns > s:gNumOfParns
-        let s:gNumOfParns = l:iNumOfParns
-        let l:pat = ''
-        if s:gNumOfParns < 2
-            let l:pat = '/([^()]*$\&./'
-        else
-            let l:patParn = '([^()]*)'
-            let l:patNestedParn = '([^()]*%s[^()]*%s'
-            let l:pat = l:patParn
-            for i in range(s:gNumOfParns-1)
-                if i < s:gNumOfParns - 2
-                    let l:pat = printf(l:patNestedParn, l:pat, ')')
-                else
-                    let l:pat = printf(l:patNestedParn, l:pat, '')
-                endif
-            endfor
-            let l:pat = '/' . l:pat . '\($\|\([^()]*(\)\)\&./'
-        endif
-        let l:syn = 'syntax match myMatch ' . l:pat
-        "echom l:syn
-        execute l:syn
-    endif
     return a:ch
 endfunction
 
@@ -325,8 +288,8 @@ endfunction
 
 " Pmatch command processor
 function! s:CmdProcessor(args)
-    inoremap <silent> ( <C-r>=<SID>FeedRoundParn2('(')<CR>
-    inoremap <silent> ) <C-r>=<SID>FeedRoundParn2(')')<CR>
+    inoremap <silent> ( <C-r>=<SID>FeedParn('(')<CR>
+    inoremap <silent> ) <C-r>=<SID>FeedParn(')')<CR>
 endfunction
 
 " restore vim settings
