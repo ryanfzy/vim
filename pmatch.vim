@@ -103,7 +103,7 @@ function! s:ListParnsToListOfListParns(listParns)
                 elseif idx == -1
                     let listPatParns = add(listPatParns, 1)
                 " found the left-parn so add it to the list
-                " TODO: this code could be refactored`
+                " TODO: this else statement could be refactored`
                 else
                     let lst = []
                     for k in range(idx)
@@ -140,6 +140,7 @@ function! s:GetPatParns(line)
     return listPatParns
 endfunction
 
+" given [0,2,1,2] return [0,2,1]
 function! s:GetSubListForOne(list, idx)
     if a:idx > len(a:list)-1
         return []
@@ -149,18 +150,14 @@ function! s:GetSubListForOne(list, idx)
         return listRet
     endif
     for i in range(a:idx-1, 0, -1)
-        "if type(a:list[i]) != type([]) && a:list[i] == 1
-            "break
-        "else
-            let listRet = add(listRet, a:list[i])
-        "endif
+        let listRet = add(listRet, a:list[i])
     endfor
     return reverse(listRet)
 endfunction
 
 " get a list that we need to translate to regex
 " [0,2,0,[2]] => [[0,2,0,[2]], [0,[2]]]
-" [1,2,1,[2]] => [[1], [2,1]]
+" [1,2,1,[2]] => [[1], [1,2,1]]
 " [1,2,0,[2]] => [[1], [0,[2]]
 function! s:GetListOfListPatParns(listPatParns)
     let l:listOfListPatParns = []
@@ -178,38 +175,44 @@ function! s:GetListOfListPatParns(listPatParns)
     return l:listOfListPatParns
 endfunction
 
+" this converts the list of parns to the regex string for syn cmd
+" e.g.
+" [0,2] => ([^()*]([^()]*)
+" [2,1] => ([^()]*)[^()]*)
+" TODO: change this so it works not only to ( and )
 function! s:GetPatParnsForSyn(listPatParns)
-    "echom 'getpatparnsforsyn:'.string(a:listPatParns)
     if len(a:listPatParns) == 0
         return ''
     endif
 
-    let l:listPats = []
-    let l:patZero = '([^()]*'
-    let l:patOne = ')'
-    let l:patTwo = '([^()]*)'
-    let l:patList = '([^()]*%s[^()]*)'
+    let listPats = []
+    let patZero = '('
+    let patOne = ')'
+    let patTwo = '([^()]*)'
+    let patList = '([^()]*%s[^()]*)'
     for i in range(len(a:listPatParns))
         if type(a:listPatParns[i]) == type([])
-            let l:pat = printf(l:patList, s:GetPatParnsForSyn(a:listPatParns[i]))
-            let l:listPats = add(l:listPats, l:pat)
+            let pat = printf(patList, s:GetPatParnsForSyn(a:listPatParns[i]))
+            let listPats = add(listPats, pat)
         elseif a:listPatParns[i] == 2
-            let l:listPats = add(l:listPats, l:patTwo)
+            let listPats = add(listPats, patTwo)
         elseif a:listPatParns[i] == 0
-            let l:listPats = add(l:listPats, l:patZero)
+            let listPats = add(listPats, patZero)
         elseif a:listPatParns[i] == 1
-            let l:listPats = add(l:listPats, l:patOne)
+            let listPats = add(listPats, patOne)
         endif
     endfor
-    if (len(l:listPats) > 0)
-        return join(l:listPats, '[^()]*')
+    if (len(listPats) > 0)
+        return join(listPats, '[^()]*')
     else
-        return l:listPats[0]
+        return listPats[0]
     endif
 endfunction
 
+" this generates regex that matches the left-parn
 function! s:GetPatParnsZeroForSyn(listPatParns)
     let l:fpat = '/([^()]*%s[^()]*$\&./'
+    " remove the first element, 0, from listOfParns
     let l:pat = s:GetPatParnsForSyn(GetSubList(a:listPatParns, 1))
     let l:fpat2 = printf(l:fpat, l:pat)
     let l:syn = 'syntax match myMatch '. l:fpat2
@@ -217,8 +220,10 @@ function! s:GetPatParnsZeroForSyn(listPatParns)
     execute l:syn
 endfunction
 
+" this generates regex that matches the right-parn
 function! s:GetPatParnsOneForSyn(listPatParns)
     let fpat = '/\(^[^()]*%s[^()]*\)\@<=)/'
+    " remove the last element, 1, from listPatParns
     call remove(a:listPatParns, len(a:listPatParns)-1)
     let l:pat = s:GetPatParnsForSyn(a:listPatParns)
     let l:fpat2 = printf(l:fpat, l:pat)
@@ -231,38 +236,32 @@ endfunction
 " TODO: we should find matching for given block of code, not actually a line of code
 function! s:RunPmatchForLine(line)
     "echom 'line:'.a:line
-    let l:listPatParns = s:GetPatParns(a:line)
+    let listPatParns = s:GetPatParns(a:line)
     "echom 'listPatParns:'.string(listPatParns)
-    let l:listOfListPatParns = s:GetListOfListPatParns(l:listPatParns)
-    "echom 'listOfListPatParns:'.string(l:listOfListPatParns)
-    let l:fpat = '/([^()]*%s[^()]*$\&./'
-    if len(l:listOfListPatParns) > 0
-        for i in range(len(l:listOfListPatParns))
-            let l:lst = l:listOfListPatParns[i]
-            if has_key(s:gOldSyn, string(l:lst))
+    let listOfListPatParns = s:GetListOfListPatParns(listPatParns)
+    "echom 'listOfListPatParns:'.string(listOfListPatParns)
+    if len(listOfListPatParns) > 0
+        for i in range(len(listOfListPatParns))
+            let lst = listOfListPatParns[i]
+            " check if we have found the same pattern before
+            " ignore it if we have
+            if has_key(s:gOldSyn, string(lst))
                 continue
             else
-                let s:gOldSyn[string(l:lst)] = 1
-                if type(l:lst[0]) != type([]) && l:lst[0] == 0
-                    call s:GetPatParnsZeroForSyn(l:lst)
+                let s:gOldSyn[string(lst)] = 1
+                " we find new pattern for left-parn to match
+                if type(lst[0]) != type([]) && lst[0] == 0
+                    call s:GetPatParnsZeroForSyn(lst)
+                " otherwise we find new pattern for right-parn to match
                 else
-                    call s:GetPatParnsOneForSyn(l:lst)
+                    call s:GetPatParnsOneForSyn(lst)
                 endif
             endif
-            "let l:pat = s:GetPatParnsForSyn(GetSubList(l:lst, 1))
-            "let l:fpat2 = printf(l:fpat, l:pat)
-            "let l:syn = 'syntax match myMatch '. l:fpat2
-            "echom l:syn
-            "execute l:syn
         endfor
-    else
-        let l:fpat2 = printf(l:fpat, '')
-        let l:syn = 'syntax match myMatch '. l:fpat2
-        "echom l:syn
-        execute l:syn
     endif
 endfunction
 
+" run pmatch when the user enters the left-parn or the right-parn
 function! s:FeedParn(ch)
     " make sure ch will be inserted into the correct position
     let line = getline('.')
@@ -277,9 +276,9 @@ endfunction
 
 " run pmatch when opening a file
 function! s:RunPmatchWhenOpenFile()
-    let listOfLines = StdGetListOfLinesOfCurrentFile()
-    for i in range(len(listOfLines))
-        call s:RunPmatchForLine(listOfLines[i])
+    let listLines = StdGetListOfLinesOfCurrentFile()
+    for i in range(len(listLines))
+        call s:RunPmatchForLine(listLines[i])
     endfor
 endfunction
 
