@@ -28,10 +28,12 @@ endfunction
 " plugin body
 """"""""""""""""""""""""""""""""""""""""""
 
-let s:gNumOfParns = 0
 highlight link myMatch Error
 let s:gOldSyn = {}
 let s:gMatches = {}
+
+let s:gLeftParn = ''
+let s:gRightParn = ''
 
 " this translate string to a list of numbers, ( to 0 and ) to 1
 " ( => [0]
@@ -47,9 +49,11 @@ function! s:StrToListParns(line)
        if !bFoundString
            if ch =~ '"' || ch =~ "'"
                let bFoundString = g:TRUE
-           elseif ch =~ '('
+           "elseif ch =~ '('
+           elseif ch =~ s:gLeftParn
                let listParns = add(listParns, 0)
-           elseif ch =~ ')'
+           "elseif ch =~ ')'
+           elseif ch =~ s:gRightParn
                let listParns = add(listParns, 1)
            endif
        " ignore parns in strings (text between " and ")
@@ -179,17 +183,21 @@ endfunction
 " e.g.
 " [0,2] => ([^()*]([^()]*)
 " [2,1] => ([^()]*)[^()]*)
-" TODO: change this so it works not only to ( and )
 function! s:GetPatParnsForSyn(listPatParns)
     if len(a:listPatParns) == 0
         return ''
     endif
 
+    " examples
+    "let patZero = '('
+    "let patOne = ')'
+    "let patTwo = '([^()]*)'
+    "let patList = '([^()]*%s[^()]*)'
     let listPats = []
-    let patZero = '('
-    let patOne = ')'
-    let patTwo = '([^()]*)'
-    let patList = '([^()]*%s[^()]*)'
+    let patZero = s:gLeftParn
+    let patOne = s:gRightParn
+    let patTwo = s:gLeftParn . '[^' . s:gLeftParn . s:gRightParn . ']*' . s:gRightParn
+    let patList = s:gLeftParn . '[^' . s:gLeftParn . s:gRightParn . ']*%s[^' . s:gLeftParn . s:gRightParn . ']*' . s:gRightParn
     for i in range(len(a:listPatParns))
         if type(a:listPatParns[i]) == type([])
             let pat = printf(patList, s:GetPatParnsForSyn(a:listPatParns[i]))
@@ -203,7 +211,9 @@ function! s:GetPatParnsForSyn(listPatParns)
         endif
     endfor
     if (len(listPats) > 0)
-        return join(listPats, '[^()]*')
+        " example
+        "return join(listPats, '[^()]*')
+        return join(listPats, '[^' .  s:gLeftParn . s:gRightParn . ']*')
     else
         return listPats[0]
     endif
@@ -211,24 +221,28 @@ endfunction
 
 " this generates regex that matches the left-parn
 function! s:GetPatParnsZeroForSyn(listPatParns)
-    let l:fpat = '/([^()]*%s[^()]*$\&./'
+    " example
+    "let l:fpat = '/([^()]*%s[^()]*$\&./'
+    let l:fpat = '/%s[^%s%s]*%s[^%s%s]*$\&./'
     " remove the first element, 0, from listOfParns
     let l:pat = s:GetPatParnsForSyn(GetSubList(a:listPatParns, 1))
-    let l:fpat2 = printf(l:fpat, l:pat)
+    let l:fpat2 = printf(l:fpat, s:gLeftParn, s:gLeftParn, s:gRightParn, l:pat, s:gLeftParn, s:gRightParn)
     let l:syn = 'syntax match myMatch '. l:fpat2
-    "echom l:syn
+    echom l:syn
     execute l:syn
 endfunction
 
 " this generates regex that matches the right-parn
 function! s:GetPatParnsOneForSyn(listPatParns)
-    let fpat = '/\(^[^()]*%s[^()]*\)\@<=)/'
+    " example
+    "let fpat = '/\(^[^()]*%s[^()]*\)\@<=)/'
+    let fpat = '/\(^[^%s%s]*%s[^%s%s]*\)\@<=%s/'
     " remove the last element, 1, from listPatParns
     call remove(a:listPatParns, len(a:listPatParns)-1)
     let l:pat = s:GetPatParnsForSyn(a:listPatParns)
-    let l:fpat2 = printf(l:fpat, l:pat)
+    let l:fpat2 = printf(l:fpat, s:gLeftParn, s:gRightParn, l:pat, s:gLeftParn, s:gRightParn, s:gRightParn)
     let l:syn = 'syntax match myMatch '. l:fpat2
-    "echom l:syn
+    echom l:syn
     execute l:syn
 endfunction
 
@@ -261,11 +275,23 @@ function! s:RunPmatchForLine(line)
     endif
 endfunction
 
+function! s:CheckAndEscapeChar(ch)
+    let charsToEscaped = '[]'
+    if stridx(charsToEscaped, a:ch) > -1
+        return '\' . a:ch
+    endif
+    return a:ch
+endfunction
+
 " run pmatch when the user enters the left-parn or the right-parn
 function! s:FeedParn(ch)
     " make sure ch will be inserted into the correct position
     let line = getline('.')
     let line = strpart(line, 0, col('.')-1) . a:ch . strpart(line, col('.')-1)
+
+    " get the char for pmatch to work on
+    let s:gLeftParn = s:CheckAndEscapeChar(s:gMatches[a:ch]['left'])
+    let s:gRightParn = s:CheckAndEscapeChar(s:gMatches[a:ch]['right'])
 
     " by default it is line based so pass the line here
     " TODO: pmatch should support block based, so matching will be
@@ -275,6 +301,7 @@ function! s:FeedParn(ch)
 endfunction
 
 " run pmatch when opening a file
+"TODO: make this function to work on multiple matches
 function! s:RunPmatchWhenOpenFile()
     let listLines = StdGetListOfLinesOfCurrentFile()
     for i in range(len(listLines))
@@ -300,10 +327,13 @@ function! s:CmdProcessor(args)
             let s:gMatches[rightParn] = dictParams
             let syn1 = printf(syn, leftParn, leftParn)
             let syn2 = printf(syn, rightParn, rightParn)
+            "echom syn1
+            "echom syn2
             execute syn1
             execute syn2
         endif
     endif
+    " examples
     "inoremap <silent> ( <C-r>=<SID>FeedParn('(')<CR>
     "inoremap <silent> ) <C-r>=<SID>FeedParn(')')<CR>
 endfunction
@@ -319,4 +349,4 @@ command -narg=+ Pmatch :call s:CmdProcessor(<q-args>)
 "call s:CmdProcessor('')
 
 " run pmatch when opening a file
-au BufRead * call <SID>RunPmatchWhenOpenFile()
+"au BufRead * call <SID>RunPmatchWhenOpenFile()
