@@ -243,7 +243,7 @@ function! s:GetPatParnsOneForSyn(listPatParns)
     let l:pat = s:GetPatParnsForSyn(a:listPatParns)
     let l:fpat2 = printf(l:fpat, s:gLeftParn, s:gRightParn, l:pat, s:gLeftParn, s:gRightParn, s:gRightParn)
     let l:syn = 'syntax match myMatch '. l:fpat2
-    echom l:syn
+    "echom l:syn
     execute l:syn
 endfunction
 
@@ -285,12 +285,7 @@ function! s:CheckAndEscapeChar(ch)
     return a:ch
 endfunction
 
-" run pmatch when the user enters the left-parn or the right-parn
-function! s:FeedParn(ch)
-    " make sure ch will be inserted into the correct position
-    let line = getline('.')
-    let line = strpart(line, 0, col('.')-1) . a:ch . strpart(line, col('.')-1)
-
+function! s:SetGlobalVariablesForChar(ch)
     " get the char for pmatch to work on
     let leftParn = s:gMatches[a:ch]['left']
     let s:gLeftParn = s:CheckAndEscapeChar(leftParn)
@@ -299,6 +294,23 @@ function! s:FeedParn(ch)
 
     " set the current old syn to check
     let s:gCurOldSyn = s:gOldSyns[leftParn]
+endfunction
+
+" run pmatch when the user enters the left-parn or the right-parn
+function! s:FeedParn(ch)
+    " make sure ch will be inserted into the correct position
+    let line = getline('.')
+    let line = strpart(line, 0, col('.')-1) . a:ch . strpart(line, col('.')-1)
+
+    call s:SetGlobalVariablesForChar(a:ch)
+    " get the char for pmatch to work on
+    "let leftParn = s:gMatches[a:ch]['left']
+    "let s:gLeftParn = s:CheckAndEscapeChar(leftParn)
+    "let s:gRightParn = s:CheckAndEscapeChar(s:gMatches[a:ch]['right'])
+    "echom 'left(' . s:gLeftParn . ') right(' . s:gRightParn . ')'
+
+    " set the current old syn to check
+    "let s:gCurOldSyn = s:gOldSyns[leftParn]
 
     " by default it is line based so pass the line here
     " TODO: pmatch should support block based, so matching will be
@@ -312,7 +324,10 @@ endfunction
 function! s:RunPmatchWhenOpenFile()
     let listLines = StdGetListOfLinesOfCurrentFile()
     for i in range(len(listLines))
-        call s:RunPmatchForLine(listLines[i])
+        for k in keys(s:gOldSyns)
+            call s:SetGlobalVariablesForChar(k)
+            call s:RunPmatchForLine(listLines[i])
+        endfor
     endfor
 endfunction
 
@@ -364,4 +379,4 @@ command -narg=+ Pmatch :call s:CmdProcessor(<q-args>)
 "call s:CmdProcessor('')
 
 " run pmatch when opening a file
-"au BufRead * call <SID>RunPmatchWhenOpenFile()
+au BufRead * call <SID>RunPmatchWhenOpenFile()
