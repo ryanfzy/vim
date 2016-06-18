@@ -29,8 +29,9 @@ endfunction
 """"""""""""""""""""""""""""""""""""""""""
 
 highlight link myMatch Error
-let s:gOldSyn = {}
+let s:gOldSyns = {}
 let s:gMatches = {}
+let s:gCurOldSyn = {}
 
 let s:gLeftParn = ''
 let s:gRightParn = ''
@@ -228,7 +229,7 @@ function! s:GetPatParnsZeroForSyn(listPatParns)
     let l:pat = s:GetPatParnsForSyn(GetSubList(a:listPatParns, 1))
     let l:fpat2 = printf(l:fpat, s:gLeftParn, s:gLeftParn, s:gRightParn, l:pat, s:gLeftParn, s:gRightParn)
     let l:syn = 'syntax match myMatch '. l:fpat2
-    echom l:syn
+    "echom l:syn
     execute l:syn
 endfunction
 
@@ -259,10 +260,10 @@ function! s:RunPmatchForLine(line)
             let lst = listOfListPatParns[i]
             " check if we have found the same pattern before
             " ignore it if we have
-            if has_key(s:gOldSyn, string(lst))
+            if has_key(s:gCurOldSyn, string(lst))
                 continue
             else
-                let s:gOldSyn[string(lst)] = 1
+                let s:gCurOldSyn[string(lst)] = 1
                 " we find new pattern for left-parn to match
                 if type(lst[0]) != type([]) && lst[0] == 0
                     call s:GetPatParnsZeroForSyn(lst)
@@ -275,6 +276,7 @@ function! s:RunPmatchForLine(line)
     endif
 endfunction
 
+" escape certain characters for regex pattern
 function! s:CheckAndEscapeChar(ch)
     let charsToEscaped = '[]'
     if stridx(charsToEscaped, a:ch) > -1
@@ -290,8 +292,13 @@ function! s:FeedParn(ch)
     let line = strpart(line, 0, col('.')-1) . a:ch . strpart(line, col('.')-1)
 
     " get the char for pmatch to work on
-    let s:gLeftParn = s:CheckAndEscapeChar(s:gMatches[a:ch]['left'])
+    let leftParn = s:gMatches[a:ch]['left']
+    let s:gLeftParn = s:CheckAndEscapeChar(leftParn)
     let s:gRightParn = s:CheckAndEscapeChar(s:gMatches[a:ch]['right'])
+    "echom 'left(' . s:gLeftParn . ') right(' . s:gRightParn . ')'
+
+    " set the current old syn to check
+    let s:gCurOldSyn = s:gOldSyns[leftParn]
 
     " by default it is line based so pass the line here
     " TODO: pmatch should support block based, so matching will be
@@ -317,14 +324,22 @@ endfunction
 function! s:CmdProcessor(args)
     let syn = "inoremap <silent> %s <C-r>=<SID>FeedParn('%s')<CR>"
 
+    " StdParseCmd() returns a list [cmdName, {parmObj}]
     let listCmd = StdParseCmd(a:args)
     if len(listCmd) > 1
+        " pmatch now only support addMatch command
         if listCmd[0] =~ 'addMatch'
             let dictParams = listCmd[1]
             let leftParn = dictParams['left']
             let rightParn = dictParams['right']
+
             let s:gMatches[leftParn] = dictParams
             let s:gMatches[rightParn] = dictParams
+
+            " when checking the old syn, we only use the left parn as the key
+            let dictOldSyn = {}
+            let s:gOldSyns[leftParn] = dictOldSyn
+
             let syn1 = printf(syn, leftParn, leftParn)
             let syn2 = printf(syn, rightParn, rightParn)
             "echom syn1
