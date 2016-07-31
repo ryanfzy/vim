@@ -9,7 +9,7 @@ let g:loaded_pmatch = 1
 
 " this plugin depends on std.vim
 if !exists("g:loaded_stdlib")
-    echom "ERROR: Pmatch depends on std.vim"
+    echom "ERROR: Pmatch requires std.vim"
     finish
 endif
 
@@ -29,12 +29,37 @@ endfunction
 """"""""""""""""""""""""""""""""""""""""""
 
 highlight link myMatch Error
+highlight myMatch2 ctermbg=green
+
 let s:gOldSyns = {}
 let s:gMatches = {}
 let s:gCurOldSyn = {}
 
 let s:gLeftParn = ''
 let s:gRightParn = ''
+
+" this will not escape the left and right parn char
+function! s:GetAllLeftOrRightParns(leftOrRight)
+    let keys = keys(s:gMatches)
+    let keysAsStr = ''
+    for key in keys
+        let leftOrRightParn = s:gMatches[key][a:leftOrRight]
+        if stridx(keysAsStr, leftOrRightParn) == -1
+            let keysAsStr = keysAsStr . leftOrRightParn
+        endif
+    endfor
+    return keysAsStr
+endfunction
+
+" get all left parns as string
+function! s:GetAllLeftParns()
+    return s:GetAllLeftOrRightParns('left')
+endfunction
+
+" get all right parns as string
+function! s:GetAllRightParns()
+    return s:GetAllLeftOrRightParns('right')
+endfunction
 
 " this translate string to a list of numbers, ( to 0 and ) to 1
 " ( => [0]
@@ -285,6 +310,8 @@ function! s:CheckAndEscapeChar(ch)
     return a:ch
 endfunction
 
+" set the global variables, this must be called first before pmatch
+" tries to parse the input
 function! s:SetGlobalVariablesForChar(ch)
     " get the char for pmatch to work on
     let leftParn = s:gMatches[a:ch]['left']
@@ -302,21 +329,27 @@ function! s:FeedParn(ch)
     let line = getline('.')
     let line = strpart(line, 0, col('.')-1) . a:ch . strpart(line, col('.')-1)
 
+    " set the global variables first
     call s:SetGlobalVariablesForChar(a:ch)
-    " get the char for pmatch to work on
-    "let leftParn = s:gMatches[a:ch]['left']
-    "let s:gLeftParn = s:CheckAndEscapeChar(leftParn)
-    "let s:gRightParn = s:CheckAndEscapeChar(s:gMatches[a:ch]['right'])
-    "echom 'left(' . s:gLeftParn . ') right(' . s:gRightParn . ')'
-
-    " set the current old syn to check
-    "let s:gCurOldSyn = s:gOldSyns[leftParn]
 
     " by default it is line based so pass the line here
     " TODO: pmatch should support block based, so matching will be
     "       work in a block of code instead of a line
     call s:RunPmatchForLine(l:line)
     return a:ch
+endfunction
+
+"a left parn of one kind should be closed by a right pran of another kind
+function! s:AddMatchForLeftParnClosedByWrongRightParn(leftParn)
+    let allRightParns = s:GetAllRightParns()
+    let rightParn = s:gMatches[a:leftParn]['right']
+    let rightParns = StdRemoveChar(allRightParns, rightParn)
+
+    let pat = '/%s[^%s%s]*[%s]\+\&./'
+    let pat = printf(pat, a:leftParn, a:leftParn, rightParn, rightParns)
+    let syn = 'syntax match myMatch ' . pat
+    "echom syn
+    execute syn
 endfunction
 
 " run pmatch when opening a file
@@ -329,6 +362,11 @@ function! s:RunPmatchWhenOpenFile()
             call s:RunPmatchForLine(listLines[i])
         endfor
     endfor
+
+    let leftParns = s:GetAllLeftParns()
+    for i in range(len(leftParns))
+        call s:AddMatchForLeftParnClosedByWrongRightParn(leftParns[i])
+    endfor
 endfunction
 
 """"""""""""""""""""""""""""""""""""""""""
@@ -337,6 +375,9 @@ endfunction
 
 " Pmatch command processor
 function! s:CmdProcessor(args)
+    " examples
+    "inoremap <silent> ( <C-r>=<SID>FeedParn('(')<CR>
+    "inoremap <silent> ) <C-r>=<SID>FeedParn(')')<CR>
     let syn = "inoremap <silent> %s <C-r>=<SID>FeedParn('%s')<CR>"
 
     " StdParseCmd() returns a list [cmdName, {parmObj}]
@@ -363,9 +404,6 @@ function! s:CmdProcessor(args)
             execute syn2
         endif
     endif
-    " examples
-    "inoremap <silent> ( <C-r>=<SID>FeedParn('(')<CR>
-    "inoremap <silent> ) <C-r>=<SID>FeedParn(')')<CR>
 endfunction
 
 " restore vim settings
@@ -375,8 +413,8 @@ call s:Restore_cpo()
 " TODO: in future, the user can set their own matchings
 command -narg=+ Pmatch :call s:CmdProcessor(<q-args>)
 
-" run Pmatch
-"call s:CmdProcessor('')
+Pmatch addMatch left=( right=)
+Pmatch addMatch left=[ right=]
 
 " run pmatch when opening a file
 au BufRead * call <SID>RunPmatchWhenOpenFile()

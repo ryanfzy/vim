@@ -208,3 +208,13 @@ function! StdParseCmd(cmd)
     let dictParams = s:listOfKeyValueStringToDictOfKeyValue(listCmdParams)
     return [cmdName, dictParams]
 endfunction
+
+function! StdRemoveChar(str, ch)
+    let ret = ''
+    for i in range(len(a:str))
+        if a:str[i] !~ a:ch
+            let ret = ret . a:str[i]
+        endif
+    endfor
+    return ret
+endfunction
