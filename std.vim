@@ -117,7 +117,7 @@ function GetWordAtCursor()
 endfunction
 
 "GetSubList(<list>, startIndex {, count})
-function GetSubList(list, start, ...)
+function! StdGetSubList(list, start, ...)
     let l:end = len(a:list) - 1
     if a:start > l:end+1
         return []
@@ -134,6 +134,14 @@ function GetSubList(list, start, ...)
         endif
     endfor
     return l:returnList
+endfunction
+
+function! StdGetSubListR(list, start)
+    let ret = []
+    for i in range(start, 0, -1)
+        let ret = add(ret, a:list[i])
+    endfor
+    return ret
 endfunction
 
 function GetWordsOnCurLine()
@@ -204,7 +212,7 @@ function! StdParseCmd(cmd)
 
     let listTokens = split(a:cmd)
     let cmdName = listTokens[0]
-    let listCmdParams = GetSubList(listTokens, 1)
+    let listCmdParams = StdGetSubList(listTokens, 1)
     let dictParams = s:listOfKeyValueStringToDictOfKeyValue(listCmdParams)
     return [cmdName, dictParams]
 endfunction
@@ -215,6 +223,17 @@ function! StdRemoveChar(str, ch)
         if a:str[i] !~ a:ch
             let ret = ret . a:str[i]
         endif
+    endfor
+    return ret
+endfunction
+
+function! StdJoinLists(listOfList, sep)
+    let ret = []
+    for aList in a:listOfList
+        if len(ret) > 0
+            let ret = add(ret, a:sep)
+        endif
+        let ret = extend(ret, aList)
     endfor
     return ret
 endfunction

@@ -1,6 +1,5 @@
 " author: ryan feng
 
-
 " check if it is already loaded
 if exists("g:loaded_pmatch")
     finish
@@ -59,6 +58,46 @@ endfunction
 " get all right parns as string
 function! s:GetAllRightParns()
     return s:GetAllLeftOrRightParns('right')
+endfunction
+
+" get the sub list starting with last left parn
+function! s:GetLastLeftParnSubList(listParns)
+    for i in range(len(a:listParns)-1, 0, -1)
+        let parn = a:listParns[i]
+        if type(parn) != type([]) && parn == 0
+            return StdGetSubList(a:listParns, i)
+        endif
+    endfor
+    return []
+endfunction
+
+function! s:GetFirstRightParnSubList(listParns)
+    for i in range(len(a:listParns))
+        let parn = a:listParns[i]
+        if type(parn) != type([]) && parn == 1
+            return s:GetSubListR(a:listParns, i)
+        endif
+    endfor
+    return []
+endfunction
+
+function! s:GetNumOfParns(listParns, leftOrRight)
+    let ret = 0
+    "echom string(a:listParns)
+    for i in range(len(a:listParns))
+        if type(a:listParns[i]) != type([]) && a:listParns[i] == a:leftOrRight
+            let ret = ret + 1
+        endif
+    endfor
+    return ret
+endfunction
+
+function! s:GetNumOfLeftParns(listParns)
+    return s:GetNumOfParns(a:listParns, 0)
+endfunction
+
+function! s:GetNumOfRightParns(listParns)
+    return s:GetNumOfParns(a:listParns, 1)
 endfunction
 
 " this translate string to a list of numbers, ( to 0 and ) to 1
@@ -195,7 +234,7 @@ function! s:GetListOfListPatParns(listPatParns)
         for i in range(len(a:listPatParns))
             if type(a:listPatParns[i]) != type([])
                 if a:listPatParns[i] == 0
-                    let l:listOfListPatParns = add(l:listOfListPatParns, GetSubList(a:listPatParns, i))
+                    let l:listOfListPatParns = add(l:listOfListPatParns, StdGetSubList(a:listPatParns, i))
                 elseif a:listPatParns[i] == 1
                     let l:listOfListPatParns = add(l:listOfListPatParns, s:GetSubListForOne(a:listPatParns, i))
                 endif
@@ -245,31 +284,80 @@ function! s:GetPatParnsForSyn(listPatParns)
     endif
 endfunction
 
-" this generates regex that matches the left-parn
-function! s:GetPatParnsZeroForSyn(listPatParns)
-    " example
-    "let l:fpat = '/([^()]*%s[^()]*$\&./'
-    let l:fpat = '/%s[^%s%s]*%s[^%s%s]*$\&./'
-    " remove the first element, 0, from listOfParns
-    let l:pat = s:GetPatParnsForSyn(GetSubList(a:listPatParns, 1))
-    let l:fpat2 = printf(l:fpat, s:gLeftParn, s:gLeftParn, s:gRightParn, l:pat, s:gLeftParn, s:gRightParn)
-    let l:syn = 'syntax match myMatch '. l:fpat2
-    "echom l:syn
-    execute l:syn
+" this convert list parns to regex
+function! s:ListParnsToPattern(listPatParns)
+    let fpat = '[^%s%s]*%s[^%s%s]*'
+    let pat = s:GetPatParnsForSyn(a:listPatParns)
+    let fpat2 = printf(fpat, s:gLeftParn, s:gRightParn, pat, s:gLeftParn, s:gRightParn)
+    return fpat2
 endfunction
 
-" this generates regex that matches the right-parn
-function! s:GetPatParnsOneForSyn(listPatParns)
+function! s:RunSynForPatParnsZero(listPatParns)
+    " example
+    "let l:fpat = '/([^()]*%s[^()]*$\&./'
+    let pat = '/%s%s$\&./'
+    " remove the first element, 0, from list parns
+    let pat = printf(pat, s:gLeftParn, s:ListParnsToPattern(StdGetSubList(a:listPatParns, 1)))
+    let syn = 'syntax match myMatch ' . pat
+    "echom syn
+    execute syn
+endfunction
+
+function! s:RunSynForPatParnsOne(listPatParns)
     " example
     "let fpat = '/\(^[^()]*%s[^()]*\)\@<=)/'
-    let fpat = '/\(^[^%s%s]*%s[^%s%s]*\)\@<=%s/'
-    " remove the last element, 1, from listPatParns
+    let pat = '/\(^%s\)\@<=%s/'
+    " remove the last element, 1, from list parns
     call remove(a:listPatParns, len(a:listPatParns)-1)
-    let l:pat = s:GetPatParnsForSyn(a:listPatParns)
-    let l:fpat2 = printf(l:fpat, s:gLeftParn, s:gRightParn, l:pat, s:gLeftParn, s:gRightParn, s:gRightParn)
-    let l:syn = 'syntax match myMatch '. l:fpat2
-    "echom l:syn
-    execute l:syn
+    let pat = printf(pat, s:ListParnsToPattern(a:listPatParns), s:gRightParn)
+    let syn = 'syntax match myMatch ' . pat
+    "echom syn
+    execute syn
+endfunction
+
+" start from the next line of current line, parse each line and find
+" all list parns that will be run multi-pmatch for
+function! s:GetListOfListParnsForMultiLine(lineNo)
+    let listOfListPat = []
+    let iLineNo = a:lineNo
+    let iLastLineNo = line('$')
+
+    let numLeftParns = 1
+    while iLineNo < iLastLineNo && numLeftParns > 0
+        let listPat = s:GetPatParns(getline(iLineNo))
+        "echom string(listPat)
+
+        if len(listPat) > 0
+            let numLeftParns = numLeftParns + s:GetNumOfLeftParns(listPat)
+            let numLeftParns = numLeftParns - s:GetNumOfRightParns(listPat)
+        endif
+        
+        let listOfListPat = add(listOfListPat, listPat)
+        let iLineNo = iLineNo + 1
+    endwhile
+
+    return listOfListPat
+endfunction
+
+function! s:GetListOfListParnsForMultiLine2(listOfListParns)
+    "echom string(a:listOfListParns)
+    let listParns = StdJoinLists(a:listOfListParns, 4)
+    "echom string(listParns)
+endfunction
+
+" this try to run multi-pmatch from current line, so it could exist immediately
+function! s:TryRunPmatchForMultiLine(line)
+    " exits if no left parns found on current line
+    let listPat = s:GetPatParns(a:line)
+    if s:GetNumOfLeftParns(listPat) < 1
+        return
+    endif
+
+    let listOfListParns = []
+    let listOfListParns = add(listOfListParns, listPat)
+
+    let listOfListParns = extend(listOfListParns, s:GetListOfListParnsForMultiLine(line('.')+1))
+    let listParns = s:GetListOfListParnsForMultiLine2(listOfListParns)
 endfunction
 
 " find matchings in given line
@@ -291,10 +379,10 @@ function! s:RunPmatchForLine(line)
                 let s:gCurOldSyn[string(lst)] = 1
                 " we find new pattern for left-parn to match
                 if type(lst[0]) != type([]) && lst[0] == 0
-                    call s:GetPatParnsZeroForSyn(lst)
+                    call s:RunSynForPatParnsZero(lst)
                 " otherwise we find new pattern for right-parn to match
                 else
-                    call s:GetPatParnsOneForSyn(lst)
+                    call s:RunSynForPatParnsOne(lst)
                 endif
             endif
         endfor
@@ -336,6 +424,9 @@ function! s:FeedParn(ch)
     " TODO: pmatch should support block based, so matching will be
     "       work in a block of code instead of a line
     call s:RunPmatchForLine(l:line)
+
+    " check if we should run pmatch for multi line
+    call s:TryRunPmatchForMultiLine(l:line)
     return a:ch
 endfunction
 
