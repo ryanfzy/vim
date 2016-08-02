@@ -37,6 +37,10 @@ let s:gCurOldSyn = {}
 let s:gLeftParn = ''
 let s:gRightParn = ''
 
+let s:ParnEnum_L = 0
+let s:ParnEnum_R = 1
+let s:ParnEnum_LR = 2
+
 " this will not escape the left and right parn char
 function! s:GetAllLeftOrRightParns(leftOrRight)
     let keys = keys(s:gMatches)
@@ -64,7 +68,7 @@ endfunction
 function! s:GetLastLeftParnSubList(listParns)
     for i in range(len(a:listParns)-1, 0, -1)
         let parn = a:listParns[i]
-        if type(parn) != type([]) && parn == 0
+        if type(parn) != type([]) && parn == s:ParnEnum_L
             return StdGetSubList(a:listParns, i)
         endif
     endfor
@@ -74,7 +78,7 @@ endfunction
 function! s:GetFirstRightParnSubList(listParns)
     for i in range(len(a:listParns))
         let parn = a:listParns[i]
-        if type(parn) != type([]) && parn == 1
+        if type(parn) != type([]) && parn == s:ParnEnum_R
             return s:GetSubListR(a:listParns, i)
         endif
     endfor
@@ -93,11 +97,11 @@ function! s:GetNumOfParns(listParns, leftOrRight)
 endfunction
 
 function! s:GetNumOfLeftParns(listParns)
-    return s:GetNumOfParns(a:listParns, 0)
+    return s:GetNumOfParns(a:listParns, s:ParnEnum_L)
 endfunction
 
 function! s:GetNumOfRightParns(listParns)
-    return s:GetNumOfParns(a:listParns, 1)
+    return s:GetNumOfParns(a:listParns, s:ParnEnum_R)
 endfunction
 
 " this translate string to a list of numbers, ( to 0 and ) to 1
@@ -116,10 +120,10 @@ function! s:StrToListParns(line)
                let bFoundString = g:TRUE
            "elseif ch =~ '('
            elseif ch =~ s:gLeftParn
-               let listParns = add(listParns, 0)
+               let listParns = add(listParns, s:ParnEnum_L)
            "elseif ch =~ ')'
            elseif ch =~ s:gRightParn
-               let listParns = add(listParns, 1)
+               let listParns = add(listParns, s:ParnEnum_R)
            endif
        " ignore parns in strings (text between " and ")
        else
@@ -147,30 +151,30 @@ function! s:ListParnsToListOfListParns(listParns)
     let listPatParns = []
     for i in range(len(a:listParns))
         let iParn = a:listParns[i]
-        if iParn == 0
-            let listPatParns = add(listPatParns, 0)
-        elseif iParn == 1
+        if iParn == s:ParnEnum_L
+            let listPatParns = add(listPatParns, s:ParnEnum_L)
+        elseif iParn == s:ParnEnum_R
             let lenPatParns = len(listPatParns)
 
             " in case there is no left-parn but we found a right-parn
             if lenPatParns < 1
-                let listPatParns = add(listPatParns, 1)
+                let listPatParns = add(listPatParns, s:ParnEnum_R)
 
             " trying to find the corresponding left-parn
             else
                 let idx = -1
                 for j in range(lenPatParns-1, 0, -1)
-                    if type(listPatParns[j]) != type([]) && listPatParns[j] == 0
+                    if type(listPatParns[j]) != type([]) && listPatParns[j] == s:ParnEnum_L
                         let l:idx = j
                         break
                     endif
                 endfor
                 " in case the left-parn is left-next to it
                 if idx == lenPatParns-1
-                    let listPatParns[lenPatParns-1] = 2
+                    let listPatParns[lenPatParns-1] = s:ParnEnum_LR
                 " in case there is no corresponding left-parn
                 elseif idx == -1
-                    let listPatParns = add(listPatParns, 1)
+                    let listPatParns = add(listPatParns, s:ParnEnum_R)
                 " found the left-parn so add it to the list
                 " TODO: this else statement could be refactored`
                 else
@@ -233,9 +237,9 @@ function! s:GetListOfListPatParns(listPatParns)
     if len(a:listPatParns) > 0
         for i in range(len(a:listPatParns))
             if type(a:listPatParns[i]) != type([])
-                if a:listPatParns[i] == 0
+                if a:listPatParns[i] == s:ParnEnum_L
                     let l:listOfListPatParns = add(l:listOfListPatParns, StdGetSubList(a:listPatParns, i))
-                elseif a:listPatParns[i] == 1
+                elseif a:listPatParns[i] == s:ParnEnum_R
                     let l:listOfListPatParns = add(l:listOfListPatParns, s:GetSubListForOne(a:listPatParns, i))
                 endif
             endif
@@ -267,11 +271,11 @@ function! s:GetPatParnsForSyn(listPatParns)
         if type(a:listPatParns[i]) == type([])
             let pat = printf(patList, s:GetPatParnsForSyn(a:listPatParns[i]))
             let listPats = add(listPats, pat)
-        elseif a:listPatParns[i] == 2
+        elseif a:listPatParns[i] == s:ParnEnum_LR
             let listPats = add(listPats, patTwo)
-        elseif a:listPatParns[i] == 0
+        elseif a:listPatParns[i] == s:ParnEnum_L
             let listPats = add(listPats, patZero)
-        elseif a:listPatParns[i] == 1
+        elseif a:listPatParns[i] == s:ParnEnum_R
             let listPats = add(listPats, patOne)
         endif
     endfor
@@ -378,7 +382,7 @@ function! s:RunPmatchForLine(line)
             else
                 let s:gCurOldSyn[string(lst)] = 1
                 " we find new pattern for left-parn to match
-                if type(lst[0]) != type([]) && lst[0] == 0
+                if type(lst[0]) != type([]) && lst[0] == s:ParnEnum_L
                     call s:RunSynForPatParnsZero(lst)
                 " otherwise we find new pattern for right-parn to match
                 else
@@ -439,7 +443,7 @@ function! s:AddMatchForLeftParnClosedByWrongRightParn(leftParn)
     let pat = '/%s[^%s%s]*[%s]\+\&./'
     let pat = printf(pat, a:leftParn, a:leftParn, rightParn, rightParns)
     let syn = 'syntax match myMatch ' . pat
-    "echom syn
+    echom syn
     execute syn
 endfunction
 
