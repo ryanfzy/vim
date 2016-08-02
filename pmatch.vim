@@ -41,6 +41,9 @@ let s:ParnEnum_L = 0
 let s:ParnEnum_R = 1
 let s:ParnEnum_LR = 2
 
+let s:MatchKey_L = 'left'
+let s:MatchKey_R = 'right'
+
 " this will not escape the left and right parn char
 function! s:GetAllLeftOrRightParns(leftOrRight)
     let keys = keys(s:gMatches)
@@ -56,12 +59,12 @@ endfunction
 
 " get all left parns as string
 function! s:GetAllLeftParns()
-    return s:GetAllLeftOrRightParns('left')
+    return s:GetAllLeftOrRightParns(s:MatchKey_L)
 endfunction
 
 " get all right parns as string
 function! s:GetAllRightParns()
-    return s:GetAllLeftOrRightParns('right')
+    return s:GetAllLeftOrRightParns(s:MatchKey_R)
 endfunction
 
 " get the sub list starting with last left parn
@@ -370,8 +373,10 @@ function! s:RunPmatchForLine(line)
     "echom 'line:'.a:line
     let listPatParns = s:GetPatParns(a:line)
     "echom 'listPatParns:'.string(listPatParns)
+
     let listOfListPatParns = s:GetListOfListPatParns(listPatParns)
     "echom 'listOfListPatParns:'.string(listOfListPatParns)
+
     if len(listOfListPatParns) > 0
         for i in range(len(listOfListPatParns))
             let lst = listOfListPatParns[i]
@@ -406,9 +411,9 @@ endfunction
 " tries to parse the input
 function! s:SetGlobalVariablesForChar(ch)
     " get the char for pmatch to work on
-    let leftParn = s:gMatches[a:ch]['left']
+    let leftParn = s:gMatches[a:ch][s:MatchKey_L]
     let s:gLeftParn = s:CheckAndEscapeChar(leftParn)
-    let s:gRightParn = s:CheckAndEscapeChar(s:gMatches[a:ch]['right'])
+    let s:gRightParn = s:CheckAndEscapeChar(s:gMatches[a:ch][s:MatchKey_R])
     "echom 'left(' . s:gLeftParn . ') right(' . s:gRightParn . ')'
 
     " set the current old syn to check
@@ -430,14 +435,14 @@ function! s:FeedParn(ch)
     call s:RunPmatchForLine(l:line)
 
     " check if we should run pmatch for multi line
-    call s:TryRunPmatchForMultiLine(l:line)
+    "call s:TryRunPmatchForMultiLine(l:line)
     return a:ch
 endfunction
 
 "a left parn of one kind should be closed by a right pran of another kind
 function! s:AddMatchForLeftParnClosedByWrongRightParn(leftParn)
     let allRightParns = s:GetAllRightParns()
-    let rightParn = s:gMatches[a:leftParn]['right']
+    let rightParn = s:gMatches[a:leftParn][s:MatchKey_R]
     let rightParns = StdRemoveChar(allRightParns, rightParn)
 
     let pat = '/%s[^%s%s]*[%s]\+\&./'
@@ -481,8 +486,8 @@ function! s:CmdProcessor(args)
         " pmatch now only support addMatch command
         if listCmd[0] =~ 'addMatch'
             let dictParams = listCmd[1]
-            let leftParn = dictParams['left']
-            let rightParn = dictParams['right']
+            let leftParn = dictParams[s:MatchKey_L]
+            let rightParn = dictParams[s:MatchKey_R]
 
             let s:gMatches[leftParn] = dictParams
             let s:gMatches[rightParn] = dictParams
