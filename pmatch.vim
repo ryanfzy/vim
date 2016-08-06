@@ -30,6 +30,8 @@ endfunction
 highlight link myMatch Error
 highlight myMatch2 ctermbg=green
 
+let s:gCurChar = ''
+
 let s:gOldSyns = {}
 let s:gMatches = {}
 let s:gCurOldSyn = {}
@@ -40,9 +42,23 @@ let s:gRightParn = ''
 let s:ParnEnum_L = 0
 let s:ParnEnum_R = 1
 let s:ParnEnum_LR = 2
+let s:ParnEnum_Ro = 3
 
 let s:MatchKey_L = 'left'
 let s:MatchKey_R = 'right'
+
+function! s:ReturnFalseFn(parm)
+    return g:FALSE
+endfunction
+
+function! s:IsRightParnsOtherThanCurOne(ch)
+    let rights = s:GetAllRightParns(g:TRUE)
+    return stridx(rights, a:ch) != -1
+endfunction
+
+function! s:IsOtherRightParns(eParn)
+    return type(a:eParn) != type([]) && a:eParn == s:ParnEnum_Ro
+endfunction
 
 " this will not escape the left and right parn char
 function! s:GetAllLeftOrRightParns(leftOrRight)
@@ -58,18 +74,35 @@ function! s:GetAllLeftOrRightParns(leftOrRight)
 endfunction
 
 " get all left parns as string
-function! s:GetAllLeftParns()
-    return s:GetAllLeftOrRightParns(s:MatchKey_L)
+function! s:GetAllLeftParns(exceptCurLeftParn)
+    let lefts = s:GetAllLeftOrRightParns(s:MatchKey_L)
+    if a:exceptCurLeftParn
+        let lefts = StdRemoveChar(lefts, s:gLeftParn)
+    endif
+    return lefts
 endfunction
 
 " get all right parns as string
-function! s:GetAllRightParns()
-    return s:GetAllLeftOrRightParns(s:MatchKey_R)
+function! s:GetAllRightParns(exceptCurRightParn)
+    let rights = s:GetAllLeftOrRightParns(s:MatchKey_R)
+    if a:exceptCurRightParn
+        let rights = StdRemoveChar(rights, s:gRightParn)
+    endif
+    return rights
+endfunction
+
+" escape certain characters for regex pattern
+function! s:CheckAndEscapeChar(ch)
+    let charsToEscaped = '[]'
+    if stridx(charsToEscaped, a:ch) > -1
+        return '\' . a:ch
+    endif
+    return a:ch
 endfunction
 
 " get the sub list starting with last left parn
 function! s:GetLastLeftParnSubList(listParns)
-    for i in range(len(a:listParns)-1, 0, -1)
+u   for i in range(len(a:listParns)-1, 0, -1)
         let parn = a:listParns[i]
         if type(parn) != type([]) && parn == s:ParnEnum_L
             return StdGetSubList(a:listParns, i)
@@ -107,15 +140,26 @@ function! s:GetNumOfRightParns(listParns)
     return s:GetNumOfParns(a:listParns, s:ParnEnum_R)
 endfunction
 
+function! s:IsAnyLeftParns(ch)
+    let lefts = s:GetAllLeftParns(g:FALSE)
+    return len(a:ch) > 0 && stridx(lefts, a:ch) != -1
+endfunction
+
+function! s:IsAnyRightParns(ch)
+    let rights = s:GetAllRightParns(g:FALSE)
+    return len(a:ch) > 0 && stridx(rights, a:ch) != -1
+endfunction
+
 " this translate string to a list of numbers, ( to 0 and ) to 1
 " ( => [0]
 " ) => [1]
 " () => [0,1]
 " )( => [1,0]
-function! s:StrToListParns(line)
+function! s:StrToListParnsEx(line, customFn, customParn)
     let listParns = []
     let bEscaped = g:FALSE
     let bFoundString = g:FALSE
+    let CustomFn = function(a:customFn)
     for i in range(len(a:line))
        let ch = a:line[i] 
        if !bFoundString
@@ -127,6 +171,8 @@ function! s:StrToListParns(line)
            "elseif ch =~ ')'
            elseif ch =~ s:gRightParn
                let listParns = add(listParns, s:ParnEnum_R)
+           elseif CustomFn(ch)
+               let listParns = add(listParns, a:customParn)
            endif
        " ignore parns in strings (text between " and ")
        else
@@ -145,13 +191,18 @@ function! s:StrToListParns(line)
     return listParns
 endfunction
 
+function! s:StrToListParns(line)
+    return s:StrToListParnsEx(a:line, 's:ReturnFalseFn', -1)
+endfunction
+
 " this translates list of parns to list of list parns
 " [0,1] => [2]
 " [0,0,1] => [0,2]
 " [0,1,1] => [2,1]
 " [0,0,1,1] => [[2]]
-function! s:ListParnsToListOfListParns(listParns)
+function! s:ListParnsToListOfListParnsEx(listParns, shouldStopLookingForLeftParnFn)
     let listPatParns = []
+    let ShouldStopLookingForLeftParnFn = function(a:shouldStopLookingForLeftParnFn)
     for i in range(len(a:listParns))
         let iParn = a:listParns[i]
         if iParn == s:ParnEnum_L
@@ -167,7 +218,12 @@ function! s:ListParnsToListOfListParns(listParns)
             else
                 let idx = -1
                 for j in range(lenPatParns-1, 0, -1)
-                    if type(listPatParns[j]) != type([]) && listPatParns[j] == s:ParnEnum_L
+                    " custom fn that stop looking for left parn
+                    " if it stops, it add right parn to list parns
+                    if ShouldStopLookingForLeftParnFn(listPatParns[j])
+                        let l:idx = -1
+                        break
+                    elseif type(listPatParns[j]) != type([]) && listPatParns[j] == s:ParnEnum_L
                         let l:idx = j
                         break
                     endif
@@ -192,11 +248,16 @@ function! s:ListParnsToListOfListParns(listParns)
                     let listPatParns = add(lst, lst2)
                 endif
             endif
+        else
+            let listPatParns = add(listPatParns, iParn)
         endif
     endfor
     return listPatParns
 endfunction
 
+function! s:ListParnsToListOfListParns(listParns)
+    return s:ListParnsToListOfListParnsEx(a:listParns, 's:ReturnFalseFn')
+endfunction
 " this translate a string to a list of list of parns
 "   ( => [0]
 "   ) => [1]
@@ -367,9 +428,62 @@ function! s:TryRunPmatchForMultiLine(line)
     let listParns = s:GetListOfListParnsForMultiLine2(listOfListParns)
 endfunction
 
-" find matchings in given line
-" TODO: we should find matching for given block of code, not actually a line of code
-function! s:RunPmatchForLine(line)
+" converts list parns to list of list unmatched parns
+" [0, 0, 3, 1, 0, 2, [2], 3, 2] => [[0, 3], [0, 2, [2], 3]]
+function! s:GetListOfListParnsForUnmatchedParns(listParns)
+    let listOfListParns = []
+    let listParns = []
+    for i in range(len(a:listParns))
+        if type(a:listParns[i]) != type([]) && a:listParns[i] == s:ParnEnum_L
+            let listParns = []
+        endif
+        let listParns = add(listParns, a:listParns[i])
+        if type(a:listParns[i]) != type([]) && a:listParns[i] == s:ParnEnum_Ro
+            let listOfListParns = add(listOfListParns, listParns)
+            let listParns = []
+        endif
+    endfor
+    return listOfListParns
+endfunction
+
+"a left parn of one kind should be closed by a right pran of another kind
+function! s:AddMatchForUnmatchedLeftAndRightParns(line)
+    "echom a:line
+
+    " converts line to list of list parns
+    let listParns = s:StrToListParnsEx(a:line, 's:IsRightParnsOtherThanCurOne', s:ParnEnum_Ro)
+    "echom string(listParns)
+    let listParns = s:ListParnsToListOfListParnsEx(listParns, 's:IsOtherRightParns')
+    "echom string(listParns)
+    let listOfListParns = s:GetListOfListParnsForUnmatchedParns(listParns)
+    "echom string(listOfListParns)
+
+    for listParns in listOfListParns
+        " check if there is a same match already added
+        if has_key(s:gCurOldSyn, string(listParns))
+            continue
+        elseif len(listParns) > 1
+            let s:gCurOldSyn[string(listParns)] = 1
+
+            let pat = '/%s%s[%s]\&./'
+            let pat2 = ''
+
+            let otherRights = s:GetAllRightParns(g:TRUE)
+            if len(listParns) == 2
+                let pat2 = '[^%s%s]*'
+                let pat2 = printf(pat2, s:gLeftParn, s:gRightParn)
+            elseif len(listParns) > 2
+                let pat2 = s:ListParnsToPattern(StdGetSubList(listParns, 1, len(listParns)-2))
+            endif
+            let pat = printf(pat, s:gLeftParn, pat2, otherRights)
+            let syn = 'syntax match myMatch ' . pat
+            "echom syn
+            execute syn
+        endif
+    endfor
+endfunction
+
+function! s:AddMatchForLeftAndRightParn(line)
     "echom 'line:'.a:line
     let listPatParns = s:GetPatParns(a:line)
     "echom 'listPatParns:'.string(listPatParns)
@@ -398,18 +512,67 @@ function! s:RunPmatchForLine(line)
     endif
 endfunction
 
-" escape certain characters for regex pattern
-function! s:CheckAndEscapeChar(ch)
-    let charsToEscaped = '[]'
-    if stridx(charsToEscaped, a:ch) > -1
-        return '\' . a:ch
+" find the nearest left parn that is left-next to the current char
+" which should be a right parn
+function! s:FindNearestLeftParnLeftNext()
+    let line = getline('.')
+    let line = strpart(line, 0, col('.')-1)
+
+    let bFoundQuote = g:FALSE
+    let nestedParns = 0
+    for i in range(len(line)-1, 0, -1)
+        let ch = line[i]
+
+        if ch =~ '"' || ch =~ "'"
+            let bFoundQuote = bFoundQuote == g:FALSE && g:TRUE
+        endif
+
+        if bFoundQuote == g:TRUE
+            continue
+        elseif s:IsAnyLeftParns(ch)
+            if nestedParns == 0
+                return ch
+            endif
+            let nestedParns = nestedParns - 1
+        elseif s:IsAnyRightParns(ch)
+            " if we find any right parn before we find a left parn
+            " end this function immediately
+            if i < len(line)-1 && nestedParns == 0
+                return ''
+            endif
+            let nestedParns = nestedParns + 1
+        endif
+    endfor
+    return ''
+endfunction
+
+" find matchings in given line
+" this function will be called when opening a file and when user enters a parn
+" TODO: we should find matching for given block of code, not actually a line of code
+function! s:RunPmatchForLine(line)
+    call s:AddMatchForLeftAndRightParn(a:line)
+
+    " this block of code will run if the user just enter a right parn
+    " because we only highlight the left parn of a unmatched pairs,
+    " this will find the any left parn that is nearest left-next to it
+    if s:IsAnyRightParns(s:gCurChar)
+        "echom "when open a file, you shouldn't see this"
+        let leftParn = s:FindNearestLeftParnLeftNext()
+        if s:IsAnyLeftParns(leftParn)
+            call s:SetGlobalVariablesForChar(leftParn)
+        endif
     endif
-    return a:ch
+
+    call s:AddMatchForUnmatchedLeftAndRightParns(a:line)
 endfunction
 
 " set the global variables, this must be called first before pmatch
 " tries to parse the input
+" note functions depend on these values to work properly
 function! s:SetGlobalVariablesForChar(ch)
+    " set the char the user just enter
+    let s:gCurChar = a:ch
+
     " get the char for pmatch to work on
     let leftParn = s:gMatches[a:ch][s:MatchKey_L]
     let s:gLeftParn = s:CheckAndEscapeChar(leftParn)
@@ -439,33 +602,15 @@ function! s:FeedParn(ch)
     return a:ch
 endfunction
 
-"a left parn of one kind should be closed by a right pran of another kind
-function! s:AddMatchForLeftParnClosedByWrongRightParn(leftParn)
-    let allRightParns = s:GetAllRightParns()
-    let rightParn = s:gMatches[a:leftParn][s:MatchKey_R]
-    let rightParns = StdRemoveChar(allRightParns, rightParn)
-
-    let pat = '/%s[^%s%s]*[%s]\+\&./'
-    let pat = printf(pat, a:leftParn, a:leftParn, rightParn, rightParns)
-    let syn = 'syntax match myMatch ' . pat
-    echom syn
-    execute syn
-endfunction
-
 " run pmatch when opening a file
 "TODO: make this function to work on multiple matches
 function! s:RunPmatchWhenOpenFile()
     let listLines = StdGetListOfLinesOfCurrentFile()
     for i in range(len(listLines))
-        for k in keys(s:gOldSyns)
-            call s:SetGlobalVariablesForChar(k)
+        for leftParn in keys(s:gOldSyns)
+            call s:SetGlobalVariablesForChar(leftParn)
             call s:RunPmatchForLine(listLines[i])
         endfor
-    endfor
-
-    let leftParns = s:GetAllLeftParns()
-    for i in range(len(leftParns))
-        call s:AddMatchForLeftParnClosedByWrongRightParn(leftParns[i])
     endfor
 endfunction
 
