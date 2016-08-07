@@ -237,3 +237,13 @@ function! StdJoinLists(listOfList, sep)
     endfor
     return ret
 endfunction
+
+function! StdRemoveItem(list, item)
+    let ret = []
+    for item in a:list
+        if item != a:item
+            let ret = add(ret, item)
+        endif
+    endfor
+    return ret
+endfunction

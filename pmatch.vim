@@ -434,30 +434,39 @@ function! s:GetListOfListParnsForUnmatchedParns(listParns)
     let listOfListParns = []
     let listParns = []
     for i in range(len(a:listParns))
-        if type(a:listParns[i]) != type([]) && a:listParns[i] == s:ParnEnum_L
-            let listParns = []
+        if type(a:listParns[i]) != type([])
+            if a:listParns[i] == s:ParnEnum_L
+                let listParns = []
+                let listParns = add(listParns, s:ParnEnum_L)
+                continue
+            elseif a:listParns[i] == s:ParnEnum_Ro && len(listParns) > 0
+                let listParns = add(listParns, s:ParnEnum_Ro)
+                let listOfListParns = add(listOfListParns, listParns)
+                let listParns = []
+                continue
+            endif
         endif
-        let listParns = add(listParns, a:listParns[i])
-        if type(a:listParns[i]) != type([]) && a:listParns[i] == s:ParnEnum_Ro
-            let listOfListParns = add(listOfListParns, listParns)
-            let listParns = []
+
+        if type(a:listParns[0]) != type([]) && a:listParns[0] == s:ParnEnum_L
+            let listParns = add(listParns, a:listParns[i])
         endif
     endfor
     return listOfListParns
 endfunction
 
-"a left parn of one kind should be closed by a right pran of another kind
-function! s:AddMatchForUnmatchedLeftAndRightParns(line)
+"a left parn of one kind shouldn't be closed by a right pran of another kind
+function! s:AddMatchForUnmatchedLeftAndRightParns(listParns)
     "echom a:line
 
-    " converts line to list of list parns
-    let listParns = s:StrToListParnsEx(a:line, 's:IsRightParnsOtherThanCurOne', s:ParnEnum_Ro)
+    "let listParns = s:StrToListParnsEx(a:line, 's:IsRightParnsOtherThanCurOne', s:ParnEnum_Ro)
     "echom string(listParns)
-    let listParns = s:ListParnsToListOfListParnsEx(listParns, 's:IsOtherRightParns')
+
+    let listParns = s:ListParnsToListOfListParnsEx(a:listParns, 's:IsOtherRightParns')
     "echom string(listParns)
     let listOfListParns = s:GetListOfListParnsForUnmatchedParns(listParns)
     "echom string(listOfListParns)
 
+    let otherRights = s:GetAllRightParns(g:TRUE)
     for listParns in listOfListParns
         " check if there is a same match already added
         if has_key(s:gCurOldSyn, string(listParns))
@@ -468,7 +477,6 @@ function! s:AddMatchForUnmatchedLeftAndRightParns(line)
             let pat = '/%s%s[%s]\&./'
             let pat2 = ''
 
-            let otherRights = s:GetAllRightParns(g:TRUE)
             if len(listParns) == 2
                 let pat2 = '[^%s%s]*'
                 let pat2 = printf(pat2, s:gLeftParn, s:gRightParn)
@@ -477,18 +485,17 @@ function! s:AddMatchForUnmatchedLeftAndRightParns(line)
             endif
             let pat = printf(pat, s:gLeftParn, pat2, otherRights)
             let syn = 'syntax match myMatch ' . pat
+            "echom string(listParns)
             "echom syn
             execute syn
         endif
     endfor
 endfunction
 
-function! s:AddMatchForLeftAndRightParn(line)
+function! s:AddMatchForLeftAndRightParn(listParns)
     "echom 'line:'.a:line
-    let listPatParns = s:GetPatParns(a:line)
-    "echom 'listPatParns:'.string(listPatParns)
-
-    let listOfListPatParns = s:GetListOfListPatParns(listPatParns)
+    let listParns = s:ListParnsToListOfListParns(a:listParns)
+    let listOfListPatParns = s:GetListOfListPatParns(listParns)
     "echom 'listOfListPatParns:'.string(listOfListPatParns)
 
     if len(listOfListPatParns) > 0
@@ -550,20 +557,25 @@ endfunction
 " this function will be called when opening a file and when user enters a parn
 " TODO: we should find matching for given block of code, not actually a line of code
 function! s:RunPmatchForLine(line)
-    call s:AddMatchForLeftAndRightParn(a:line)
+    "call s:AddMatchForLeftAndRightParn(a:line)
+    let listParns = s:StrToListParnsEx(a:line, 's:IsRightParnsOtherThanCurOne', s:ParnEnum_Ro)
+
+    let listParns1 = StdRemoveItem(listParns, s:ParnEnum_Ro)
+    call s:AddMatchForLeftAndRightParn(listParns1)
 
     " this block of code will run if the user just enter a right parn
     " because we only highlight the left parn of a unmatched pairs,
     " this will find the any left parn that is nearest left-next to it
     if s:IsAnyRightParns(s:gCurChar)
-        "echom "when open a file, you shouldn't see this"
+        echom "when open a file, you shouldn't see this"
         let leftParn = s:FindNearestLeftParnLeftNext()
         if s:IsAnyLeftParns(leftParn)
             call s:SetGlobalVariablesForChar(leftParn)
         endif
     endif
 
-    call s:AddMatchForUnmatchedLeftAndRightParns(a:line)
+    "call s:AddMatchForUnmatchedLeftAndRightParns(a:line)
+    call s:AddMatchForUnmatchedLeftAndRightParns(listParns)
 endfunction
 
 " set the global variables, this must be called first before pmatch
