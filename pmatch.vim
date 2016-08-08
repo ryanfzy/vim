@@ -39,25 +39,37 @@ let s:gCurOldSyn = {}
 let s:gLeftParn = ''
 let s:gRightParn = ''
 
+let s:ParnEnum_None = -1
 let s:ParnEnum_L = 0
 let s:ParnEnum_R = 1
 let s:ParnEnum_LR = 2
 let s:ParnEnum_Ro = 3
+let s:ParnEnum_Lo = 4
+let s:ParnEnum_LRo = 5
 
 let s:MatchKey_L = 'left'
 let s:MatchKey_R = 'right'
 
-function! s:ReturnFalseFn(parm)
-    return g:FALSE
+function! s:ReturnParnEnumNoneFn(parm)
+    "return g:FALSE
+    return s:ParnEnum_None 
 endfunction
 
-function! s:IsRightParnsOtherThanCurOne(ch)
-    let rights = s:GetAllRightParns(g:TRUE)
-    return stridx(rights, a:ch) != -1
-endfunction
-
-function! s:IsOtherRightParns(eParn)
-    return type(a:eParn) != type([]) && a:eParn == s:ParnEnum_Ro
+function! s:CheckIfOtherLeftOrRightParns(ch)
+    "let rights = s:GetAllRightParns(g:TRUE)
+    "return stridx(rights, a:ch) != -1
+    if len(a:ch) > 0
+        let lefts = s:GetAllLeftParns(g:TRUE)
+        if stridx(lefts, a:ch) != -1
+            return s:ParnEnum_Lo
+        else
+            let rights = s:GetAllRightParns(g:TRUE)
+            if stridx(rights, a:ch) != -1
+                return s:ParnEnum_Ro
+            endif
+        endif
+    endif
+    return s:ParnEnum_None
 endfunction
 
 " this will not escape the left and right parn char
@@ -155,7 +167,7 @@ endfunction
 " ) => [1]
 " () => [0,1]
 " )( => [1,0]
-function! s:StrToListParnsEx(line, customFn, customParn)
+function! s:StrToListParnsEx(line, customFn)
     let listParns = []
     let bEscaped = g:FALSE
     let bFoundString = g:FALSE
@@ -171,8 +183,9 @@ function! s:StrToListParnsEx(line, customFn, customParn)
            "elseif ch =~ ')'
            elseif ch =~ s:gRightParn
                let listParns = add(listParns, s:ParnEnum_R)
-           elseif CustomFn(ch)
-               let listParns = add(listParns, a:customParn)
+           elseif CustomFn(ch) != s:ParnEnum_None
+               "let listParns = add(listParns, a:customParn)
+               let listParns = add(listParns, CustomFn(ch))
            endif
        " ignore parns in strings (text between " and ")
        else
@@ -192,7 +205,7 @@ function! s:StrToListParnsEx(line, customFn, customParn)
 endfunction
 
 function! s:StrToListParns(line)
-    return s:StrToListParnsEx(a:line, 's:ReturnFalseFn', -1)
+    return s:StrToListParnsEx(a:line, 's:ReturnParnEnumNoneFn')
 endfunction
 
 " this translates list of parns to list of list parns
@@ -200,19 +213,21 @@ endfunction
 " [0,0,1] => [0,2]
 " [0,1,1] => [2,1]
 " [0,0,1,1] => [[2]]
-function! s:ListParnsToListOfListParnsEx(listParns, shouldStopLookingForLeftParnFn)
+function! s:ListParnsToListOfListParns(listParns)
     let listPatParns = []
-    let ShouldStopLookingForLeftParnFn = function(a:shouldStopLookingForLeftParnFn)
     for i in range(len(a:listParns))
         let iParn = a:listParns[i]
-        if iParn == s:ParnEnum_L
-            let listPatParns = add(listPatParns, s:ParnEnum_L)
-        elseif iParn == s:ParnEnum_R
+        "if iParn == s:ParnEnum_L
+        if iParn == s:ParnEnum_L || iParn == s:ParnEnum_Lo
+            "let listPatParns = add(listPatParns, s:ParnEnum_L)
+            let listPatParns = add(listPatParns, iParn)
+        elseif iParn == s:ParnEnum_R || iParn == s:ParnEnum_Ro
             let lenPatParns = len(listPatParns)
 
             " in case there is no left-parn but we found a right-parn
             if lenPatParns < 1
-                let listPatParns = add(listPatParns, s:ParnEnum_R)
+                "let listPatParns = add(listPatParns, s:ParnEnum_R)
+                let listPatParns = add(listPatParns, iParn)
 
             " trying to find the corresponding left-parn
             else
@@ -220,20 +235,35 @@ function! s:ListParnsToListOfListParnsEx(listParns, shouldStopLookingForLeftParn
                 for j in range(lenPatParns-1, 0, -1)
                     " custom fn that stop looking for left parn
                     " if it stops, it add right parn to list parns
-                    if ShouldStopLookingForLeftParnFn(listPatParns[j])
-                        let l:idx = -1
-                        break
-                    elseif type(listPatParns[j]) != type([]) && listPatParns[j] == s:ParnEnum_L
-                        let l:idx = j
-                        break
+                    if type(listPatParns[j]) != type([])
+                        let iCurParn = listPatParns[j]
+                        if (iParn == s:ParnEnum_Ro && iCurParn == s:ParnEnum_R) || (iParn == s:ParnEnum_R && iCurParn == s:ParnEnum_Ro)
+                            let l:idx = -1
+                            break
+                        elseif (iParn == s:ParnEnum_L && iCurParn == s:ParnEnum_Ro) || (iParn == s:ParnEnum_Lo && CurParn == s:ParnEnum_R)
+                            let l:idx = -1
+                            break
+                        elseif (iParn == s:ParnEnum_R && iCurParn == s:ParnEnum_Lo) || (iParn == s:ParnEnum_Ro && iCurParn == s:ParnEnum_L)
+                            let l:idx = -1
+                            break
+                        elseif iCurParn == s:ParnEnum_L || iCurParn == s:ParnEnum_Lo
+                            let l:idx = j
+                            break
+                        endif
                     endif
                 endfor
                 " in case the left-parn is left-next to it
                 if idx == lenPatParns-1
-                    let listPatParns[lenPatParns-1] = s:ParnEnum_LR
+                    "let listPatParns[lenPatParns-1] = s:ParnEnum_LR
+                    if listPatParns[lenPatParns-1] == s:ParnEnum_Lo && iParn == s:ParnEnum_Ro
+                        let listPatParns[lenPatParns-1] = s:ParnEnum_LRo
+                    else
+                        let listPatParns[lenPatParns-1] = s:ParnEnum_LR
+                    endif
                 " in case there is no corresponding left-parn
                 elseif idx == -1
-                    let listPatParns = add(listPatParns, s:ParnEnum_R)
+                    "let listPatParns = add(listPatParns, s:ParnEnum_R)
+                    let listPatParns = add(listPatParns, iParn)
                 " found the left-parn so add it to the list
                 " TODO: this else statement could be refactored`
                 else
@@ -255,9 +285,6 @@ function! s:ListParnsToListOfListParnsEx(listParns, shouldStopLookingForLeftParn
     return listPatParns
 endfunction
 
-function! s:ListParnsToListOfListParns(listParns)
-    return s:ListParnsToListOfListParnsEx(a:listParns, 's:ReturnFalseFn')
-endfunction
 " this translate a string to a list of list of parns
 "   ( => [0]
 "   ) => [1]
@@ -456,12 +483,7 @@ endfunction
 
 "a left parn of one kind shouldn't be closed by a right pran of another kind
 function! s:AddMatchForUnmatchedLeftAndRightParns(listParns)
-    "echom a:line
-
-    "let listParns = s:StrToListParnsEx(a:line, 's:IsRightParnsOtherThanCurOne', s:ParnEnum_Ro)
-    "echom string(listParns)
-
-    let listParns = s:ListParnsToListOfListParnsEx(a:listParns, 's:IsOtherRightParns')
+    let listParns = s:ListParnsToListOfListParns(a:listParns)
     "echom string(listParns)
     let listOfListParns = s:GetListOfListParnsForUnmatchedParns(listParns)
     "echom string(listOfListParns)
@@ -557,10 +579,10 @@ endfunction
 " this function will be called when opening a file and when user enters a parn
 " TODO: we should find matching for given block of code, not actually a line of code
 function! s:RunPmatchForLine(line)
-    "call s:AddMatchForLeftAndRightParn(a:line)
-    let listParns = s:StrToListParnsEx(a:line, 's:IsRightParnsOtherThanCurOne', s:ParnEnum_Ro)
+    let listParns = s:StrToListParnsEx(a:line, 's:CheckIfOtherLeftOrRightParns')
 
     let listParns1 = StdRemoveItem(listParns, s:ParnEnum_Ro)
+    let listParns1 = StdRemoveItem(listParns1, s:ParnEnum_Lo)
     call s:AddMatchForLeftAndRightParn(listParns1)
 
     " this block of code will run if the user just enter a right parn
@@ -574,7 +596,7 @@ function! s:RunPmatchForLine(line)
         endif
     endif
 
-    "call s:AddMatchForUnmatchedLeftAndRightParns(a:line)
+    let listParns = StdRemoveItem(listParns, s:ParnEnum_Lo)
     call s:AddMatchForUnmatchedLeftAndRightParns(listParns)
 endfunction
 
