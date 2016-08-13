@@ -208,6 +208,72 @@ function! s:StrToListParns(line)
     return s:StrToListParnsEx(a:line, 's:ReturnParnEnumNoneFn')
 endfunction
 
+function! s:ListParnsToListOfListParns2(listParns)
+    let retListOfListParns = []
+
+    let listOfListParns = []
+    let listCounts = []
+
+    let lenListParns = len(a:listParns)
+    for j in range(lenListParns)
+        let parn = a:listParns[j]
+        "echom 'parn:'.parn
+        if parn == s:ParnEnum_L
+            for i in range(len(listOfListParns))
+                let listOfListParns[i] = add(listOfListParns[i], parn)
+                let listCounts[i] = listCounts[i] + 1
+            endfor
+
+            let listOfListParns = add(listOfListParns, [parn])
+            let listCounts = add(listCounts, 1)
+        elseif parn == s:ParnEnum_R
+            " remove the paired parns
+            let listIndexToRemove = []
+            for i in range(len(listCounts))
+                if listCounts[i] == 1
+                    let listIndexToRemove = add(listIndexToRemove, i)
+                endif
+                let listOfListParns[i] = add(listOfListParns[i], parn)
+                let listCounts[i] = listCounts[i] - 1
+            endfor
+
+            if len(listOfListParns) < 1
+                let listOfListParns = add(listOfListParns, [parn])
+                let listCounts = add(listCounts, -1)
+            endif
+
+            "echom 'index:'.string(listIndexToRemove)
+            for i in range(len(listIndexToRemove))
+                " don't remove the first one
+                if listIndexToRemove[i] != 0
+                    let index = listIndexToRemove[i] - i
+                    if listIndexToRemove[0] == 0 && i == 1
+                        let index = index + 1
+                    endif
+                    call remove(listOfListParns, index)
+                    call remove(listCounts, index)
+                endif
+            endfor
+
+            if len(listCounts) > 0 && listCounts[0] < 0 && parn == s:ParnEnum_R
+                let retListOfListParns = add(retListOfListParns, copy(listOfListParns[0]))
+            endif
+        endif
+        "echom 'list parns:'.string(listOfListParns)
+        "echom 'counts:'.string(listCounts)
+    endfor
+
+    "echom 'counts:'.string(listCounts)
+    if len(listOfListParns) > 0 && len(listOfListParns[0]) > 0
+        if listCounts[0] < 1 || listOfListParns[0][0] != s:ParnEnum_L || (listCounts[0] == 1 && listOfListParns[0][len(listOfListParns[0])-1] == s:ParnEnum_L)
+            call remove(listOfListParns, 0)
+        endif
+    endif
+
+    let retListOfListParns = extend(retListOfListParns, listOfListParns)
+    return retListOfListParns
+endfunction
+
 " this translates list of parns to list of list parns
 " [0,1] => [2]
 " [0,0,1] => [0,2]
@@ -394,7 +460,7 @@ function! s:RunSynForPatParnsZero(listPatParns)
     " remove the first element, 0, from list parns
     let pat = printf(pat, s:gLeftParn, s:ListParnsToPattern(StdGetSubList(a:listPatParns, 1)))
     let syn = 'syntax match myMatch ' . pat
-    "echom syn
+    echom syn
     execute syn
 endfunction
 
@@ -406,7 +472,7 @@ function! s:RunSynForPatParnsOne(listPatParns)
     call remove(a:listPatParns, len(a:listPatParns)-1)
     let pat = printf(pat, s:ListParnsToPattern(a:listPatParns), s:gRightParn)
     let syn = 'syntax match myMatch ' . pat
-    "echom syn
+    echom syn
     execute syn
 endfunction
 
@@ -514,6 +580,99 @@ function! s:AddMatchForUnmatchedLeftAndRightParns(listParns)
     endfor
 endfunction
 
+function! s:GetSynForListParn(listParns)
+    let anyChars = '[^' . s:gLeftParn . s:gRightParn . ']*'
+    let pat = ''
+    for i in range(len(a:listParns))
+        let parn = a:listParns[i]
+        let pat = pat . anyChars
+        if parn == s:ParnEnum_L
+            let pat = pat . s:gLeftParn
+        elseif parn == s:ParnEnum_R
+            let pat = pat . s:gRightParn
+        endif
+    endfor
+    return pat
+endfunction
+
+function! s:RunSynForLeftParn(listParns)
+    let anyChars = '[^' . s:gLeftParn . s:gRightParn . ']*'
+    let pat = '/%s%s%s$\&./'
+    let pat2 = ''
+    if len(a:listParns) > 1
+        let pat2 = s:GetSynForListParn(StdGetSubList(a:listParns, 1))
+    endif
+    let syn = printf(pat, s:gLeftParn, pat2, anyChars)
+    "echom 'listparns:'.string(a:listParns)
+    let syn = 'syntax match myMatch ' . syn
+    "echom syn
+    execute syn
+endfunction
+
+function! s:RunSynForRightParn(listParns)
+    let anyChars = '[^' . s:gLeftParn . s:gRightParn . ']*'
+    let pat = '/\(^%s%s\)\@<=%s/'
+    let pat2 = ''
+    if len(a:listParns) > 1
+        let pat2 = s:GetSynForListParn(StdGetSubList(a:listParns, 0, len(a:listParns)-1))
+    endif
+    let syn = printf(pat, pat2, anyChars, s:gRightParn)
+    "echom 'rightparns:'.string(a:listParns)
+    let syn = 'syntax match myMatch ' . syn
+    "echom syn
+    execute syn
+endfunction
+
+function! s:ShouldAddMatchForLeftOrRightParn(listParns)
+    if len(a:listParns) < 2
+        return a:listParns[0]
+    endif
+    let indexLast = len(a:listParns) - 1
+    for i in range(len(a:listParns))
+        if a:listParns[i] == a:listParns[indexLast-i]
+            return a:listParns[i]
+        endif
+    endfor
+    return s:ParnEnum_None
+endfunction
+
+function! s:ShouldAddMatchForLeftParn(listParns)
+    if a:listParns[0] == s:ParnEnum_L
+        if len(a:listParns) < 2 || a:listParns[1] == s:ParnEnum_L
+            return g:TRUE
+        endif
+    endif
+    return g:FALSE
+endfunction
+
+function! s:ShouldAddMatchForRightParn(listParns)
+    let indexLast = len(a:listParns)-1
+    if a:listParns[indexLast] == s:ParnEnum_R
+        if len(a:listParns) < 2 || a:listParns[indexLast-1] == s:ParnEnum_R
+            return g:TRUE
+        endif
+    endif
+    return g:FALSE
+endfunction
+
+function! s:AddMatchForLeftAndRightParn2(listOfListParns)
+    if len(a:listOfListParns) > 0
+        for listParns in a:listOfListParns
+            if has_key(s:gCurOldSyn, string(listParns))
+                continue
+            else
+                let s:gCurOldSyn[string(listParns)] = 1
+                let eParn = s:ShouldAddMatchForLeftOrRightParn(listParns)
+                if eParn == s:ParnEnum_L
+                    call s:RunSynForLeftParn(listParns)
+                elseif eParn == s:ParnEnum_R
+                    call s:RunSynForRightParn(listParns)
+                endif
+            endif
+        endfor
+    endif
+endfunction
+
 function! s:AddMatchForLeftAndRightParn(listParns)
     "echom 'line:'.a:line
     let listParns = s:ListParnsToListOfListParns(a:listParns)
@@ -583,10 +742,12 @@ function! s:RunPmatchForLine(line)
 
     let listParns1 = StdRemoveItem(listParns, s:ParnEnum_Ro)
     let listParns1 = StdRemoveItem(listParns1, s:ParnEnum_Lo)
-    call s:AddMatchForLeftAndRightParn(listParns1)
+    "echom string(listParns1)
+    let listParns2 = s:ListParnsToListOfListParns2(listParns1)
+    call s:AddMatchForLeftAndRightParn2(listParns2)
+    "call s:AddMatchForLeftAndRightParn(listParns1)
 
-    " this block of code will run if the user just enter a right parn
-    " because we only highlight the left parn of a unmatched pairs,
+    " this block of code will run if the user just enter a right parn " because we only highlight the left parn of a unmatched pairs,
     " this will find the any left parn that is nearest left-next to it
     if s:IsAnyRightParns(s:gCurChar)
         echom "when open a file, you shouldn't see this"
@@ -596,8 +757,8 @@ function! s:RunPmatchForLine(line)
         endif
     endif
 
-    let listParns = StdRemoveItem(listParns, s:ParnEnum_Lo)
-    call s:AddMatchForUnmatchedLeftAndRightParns(listParns)
+    "let listParns = StdRemoveItem(listParns, s:ParnEnum_Lo)
+    "call s:AddMatchForUnmatchedLeftAndRightParns(listParns)
 endfunction
 
 " set the global variables, this must be called first before pmatch
