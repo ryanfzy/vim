@@ -43,9 +43,11 @@ let s:ParnEnum_None = -1
 let s:ParnEnum_L = 0
 let s:ParnEnum_R = 1
 let s:ParnEnum_LR = 2
-let s:ParnEnum_Ro = 3
-let s:ParnEnum_Lo = 4
+let s:ParnEnum_Lo = 3
+let s:ParnEnum_Ro = 4
 let s:ParnEnum_LRo = 5
+let s:ParnEnum_La = 6
+let s:ParnEnum_Ra = 7
 
 let s:MatchKey_L = 'left'
 let s:MatchKey_R = 'right'
@@ -73,12 +75,14 @@ function! s:CheckIfOtherLeftOrRightParns(ch)
 endfunction
 
 " this will not escape the left and right parn char
-function! s:GetAllLeftOrRightParns(leftOrRight)
+function! s:GetAllLeftOrRightParns(leftOrRight, excludeCurOne)
     let keys = keys(s:gMatches)
     let keysAsStr = ''
     for key in keys
-        let leftOrRightParn = s:gMatches[key][a:leftOrRight]
-        if stridx(keysAsStr, leftOrRightParn) == -1
+        let leftOrRightParn = s:CheckAndEscapeChar(s:gMatches[key][a:leftOrRight])
+        if a:excludeCurOne && (leftOrRightParn == s:gLeftParn || leftOrRightParn == s:gRightParn)
+            continue
+        elseif stridx(keysAsStr, leftOrRightParn) == -1
             let keysAsStr = keysAsStr . leftOrRightParn
         endif
     endfor
@@ -86,27 +90,27 @@ function! s:GetAllLeftOrRightParns(leftOrRight)
 endfunction
 
 " get all left parns as string
-function! s:GetAllLeftParns(exceptCurLeftParn)
-    let lefts = s:GetAllLeftOrRightParns(s:MatchKey_L)
-    if a:exceptCurLeftParn
-        let lefts = StdRemoveChar(lefts, s:gLeftParn)
-    endif
+function! s:GetAllLeftParns(exceptCurOne)
+    let lefts = s:GetAllLeftOrRightParns(s:MatchKey_L, a:exceptCurOne)
+    "if a:exceptCurLeftParn
+        "let lefts = StdRemoveChar(lefts, s:gLeftParn)
+    "endif
     return lefts
 endfunction
 
 " get all right parns as string
-function! s:GetAllRightParns(exceptCurRightParn)
-    let rights = s:GetAllLeftOrRightParns(s:MatchKey_R)
-    if a:exceptCurRightParn
-        let rights = StdRemoveChar(rights, s:gRightParn)
-    endif
+function! s:GetAllRightParns(exceptCurOne)
+    let rights = s:GetAllLeftOrRightParns(s:MatchKey_R, a:exceptCurOne)
+    "if a:exceptCurRightParn
+        "let rights = StdRemoveChar(rights, s:gRightParn)
+    "endif
     return rights
 endfunction
 
 " escape certain characters for regex pattern
 function! s:CheckAndEscapeChar(ch)
     let charsToEscaped = '[]'
-    if stridx(charsToEscaped, a:ch) > -1
+    if len(a:ch) > 0 && stridx(charsToEscaped, a:ch) > -1
         return '\' . a:ch
     endif
     return a:ch
@@ -214,9 +218,10 @@ function! s:ListParnsToListOfListParns2(listParns)
     let listOfListParns = []
     let listCounts = []
 
-    let lenListParns = len(a:listParns)
-    for j in range(lenListParns)
-        let parn = a:listParns[j]
+    "let lenListParns = len(a:listParns)
+    "for parn in range(lenListParns)
+    for parn in a:listParns
+        "let parn = a:listParns[j]
         "echom 'parn:'.parn
         if parn == s:ParnEnum_L
             for i in range(len(listOfListParns))
@@ -271,6 +276,49 @@ function! s:ListParnsToListOfListParns2(listParns)
     endif
 
     let retListOfListParns = extend(retListOfListParns, listOfListParns)
+    return retListOfListParns
+endfunction
+
+function! s:ListParnsToListOfListParns3(listParns)
+    let retListOfListParns = []
+    let listOfListParns = []
+    let listCounts = []
+    if len(a:listParns) > 1
+        for parn in a:listParns
+            if parn == s:ParnEnum_L || parn == s:ParnEnum_Lo
+                for i in range(len(listOfListParns))
+                    "let listOfListParns[i] = add(listOfListParns[i], parn)
+                    let listOfListParns[i] = add(listOfListParns[i], s:ParnEnum_La)
+                    let listCounts[i] = listCounts[i] + 1
+                endfor
+                if parn == s:ParnEnum_L
+                    "let listOfListParns = add(listOfListParns, [parn])
+                    let listOfListParns = add(listOfListParns, [s:ParnEnum_L])
+                    let listCounts = add(listCounts, 1)
+                endif
+            elseif parn == s:ParnEnum_R || parn == s:ParnEnum_Ro
+                let indexToRemove = []
+                for i in range(len(listOfListParns))
+                    if listCounts[i] == 1 && parn == s:ParnEnum_Ro
+                        let listOfListParns[i] = add(listOfListParns[i], s:ParnEnum_Ro)
+                        let retListOfListParns = add(retListOfListParns, listOfListParns[i])
+                        let indexToRemove = add(indexToRemove, i)
+                        "let listCounts[i] = listCounts[i] - 1
+                    else
+                        let listOfListParns[i] = add(listOfListParns[i], s:ParnEnum_Ra)
+                    endif
+                    "let listOfListParns[i] = add(listOfListParns[i], parn)
+                    let listCounts[i] = listCounts[i] - 1
+                endfor
+
+                for i in range(len(indexToRemove))
+                    let index = indexToRemove[i] - i
+                    call remove(listOfListParns, index)
+                    call remove(listCounts, index)
+                endfor
+            endif
+        endfor
+    endif
     return retListOfListParns
 endfunction
 
@@ -552,7 +600,7 @@ function! s:AddMatchForUnmatchedLeftAndRightParns(listParns)
     let listParns = s:ListParnsToListOfListParns(a:listParns)
     "echom string(listParns)
     let listOfListParns = s:GetListOfListParnsForUnmatchedParns(listParns)
-    "echom string(listOfListParns)
+    echom 'add match:'.string(listOfListParns)
 
     let otherRights = s:GetAllRightParns(g:TRUE)
     for listParns in listOfListParns
@@ -574,14 +622,35 @@ function! s:AddMatchForUnmatchedLeftAndRightParns(listParns)
             let pat = printf(pat, s:gLeftParn, pat2, otherRights)
             let syn = 'syntax match myMatch ' . pat
             "echom string(listParns)
-            "echom syn
-            execute syn
+            echom syn
+            "execute syn
         endif
     endfor
 endfunction
 
+function! s:GetSynForListParn2(listParns)
+    let anyChars = s:GetAnyCharsPat2()
+    let anyLeftChars = s:GetAnyLeftParnsPat()
+    let anyRightChars = s:GetAnyRightParnsPat()
+    let anyOtherRightChars = s:GetAnyRightParnsExcludeCurOne()
+
+    let pat = ''
+    for i in range(len(a:listParns))
+        let parn = a:listParns[i]
+        let pat = pat . anyChars
+        if parn == s:ParnEnum_La
+            let pat = pat . anyLeftChars
+        elseif parn == s:ParnEnum_Ra
+            let pat = pat . anyRightChars
+        elseif parn == s:ParnEnum_Ro
+            let pat = pat . anyOtherRightChars
+        endif
+    endfor
+    return pat
+endfunction
+
 function! s:GetSynForListParn(listParns)
-    let anyChars = '[^' . s:gLeftParn . s:gRightParn . ']*'
+    let anyChars = s:GetAnyCharsPat()
     let pat = ''
     for i in range(len(a:listParns))
         let parn = a:listParns[i]
@@ -595,8 +664,63 @@ function! s:GetSynForListParn(listParns)
     return pat
 endfunction
 
+function! s:GetAnyCharsPat()
+    let pat = '[^%s%s]*'
+    return printf(pat, s:gLeftParn, s:gRightParn)
+endfunction
+
+function! s:GetAnyCharsPat2()
+    let pat = '[^%s%s]*'
+    return printf(pat, s:GetAllLeftParns(g:FALSE), s:GetAllRightParns(g:FALSE))
+endfunction
+
+function! s:GetAnyLeftParnsPat()
+    let pat = '[%s]' 
+    return printf(pat, s:GetAllLeftParns(g:FALSE))
+endfunction
+
+function! s:GetAnyRightParnsPat()
+    let pat = '[%s]'
+    return printf(pat, s:GetAllRightParns(g:FALSE))
+endfunction
+
+function! s:GetAnyRightParnsExcludeCurOne()
+    let pat = '[%s]'
+    return printf(pat, s:GetAllRightParns(g:TRUE))
+endfunction
+
+function! s:AddMatchForLeftParnWithWrongRightParn(listOfListParns)
+    if len(a:listOfListParns) > 0
+        for listParns in a:listOfListParns
+            if has_key(s:gCurOldSyn, string(listParns))
+                continue
+            else
+                let s:gCurOldSyn[string(listParns)] = 1
+                call s:RunSynForLeftParnWithWrongRightParn(listParns)
+            endif
+        endfor
+    endif
+endfunction
+
+function! s:RunSynForLeftParnWithWrongRightParn(listParns)
+    if len(a:listParns) > 1
+        "let anyChars = s:GetRightParns()
+        let anyOtherRightParns = s:GetAnyRightParnsExcludeCurOne()
+        echom 'other:'.string(anyOtherRightParns)
+        let pat = '/%s%s%s\&./'
+        let pat2 = ''
+        if len(a:listParns) > 2
+            let pat2 = s:GetSynForListParn2(StdGetSubList(a:listParns, 1, len(a:listParns)-2))
+        endif
+        let syn = printf(pat, s:gLeftParn, pat2, anyOtherRightParns)
+        let syn = 'syntax match myMatch ' . syn
+        echom syn
+        execute syn
+    endif
+endfunction
+
 function! s:RunSynForLeftParn(listParns)
-    let anyChars = '[^' . s:gLeftParn . s:gRightParn . ']*'
+    let anyChars = s:GetAnyCharsPat()
     let pat = '/%s%s%s$\&./'
     let pat2 = ''
     if len(a:listParns) > 1
@@ -610,7 +734,7 @@ function! s:RunSynForLeftParn(listParns)
 endfunction
 
 function! s:RunSynForRightParn(listParns)
-    let anyChars = '[^' . s:gLeftParn . s:gRightParn . ']*'
+    let anyChars = s:GetAnyCharsPat()
     let pat = '/\(^%s%s\)\@<=%s/'
     let pat2 = ''
     if len(a:listParns) > 1
@@ -623,6 +747,7 @@ function! s:RunSynForRightParn(listParns)
     execute syn
 endfunction
 
+" check if a given list parns is for left or right parn match
 function! s:ShouldAddMatchForLeftOrRightParn(listParns)
     if len(a:listParns) < 2
         return a:listParns[0]
@@ -636,31 +761,14 @@ function! s:ShouldAddMatchForLeftOrRightParn(listParns)
     return s:ParnEnum_None
 endfunction
 
-function! s:ShouldAddMatchForLeftParn(listParns)
-    if a:listParns[0] == s:ParnEnum_L
-        if len(a:listParns) < 2 || a:listParns[1] == s:ParnEnum_L
-            return g:TRUE
-        endif
-    endif
-    return g:FALSE
-endfunction
-
-function! s:ShouldAddMatchForRightParn(listParns)
-    let indexLast = len(a:listParns)-1
-    if a:listParns[indexLast] == s:ParnEnum_R
-        if len(a:listParns) < 2 || a:listParns[indexLast-1] == s:ParnEnum_R
-            return g:TRUE
-        endif
-    endif
-    return g:FALSE
-endfunction
-
 function! s:AddMatchForLeftAndRightParn2(listOfListParns)
     if len(a:listOfListParns) > 0
         for listParns in a:listOfListParns
+            " pass if there is already a match added
             if has_key(s:gCurOldSyn, string(listParns))
                 continue
             else
+                " add a new match
                 let s:gCurOldSyn[string(listParns)] = 1
                 let eParn = s:ShouldAddMatchForLeftOrRightParn(listParns)
                 if eParn == s:ParnEnum_L
@@ -739,11 +847,13 @@ endfunction
 " TODO: we should find matching for given block of code, not actually a line of code
 function! s:RunPmatchForLine(line)
     let listParns = s:StrToListParnsEx(a:line, 's:CheckIfOtherLeftOrRightParns')
+    echom string(listParns)
 
-    let listParns1 = StdRemoveItem(listParns, s:ParnEnum_Ro)
-    let listParns1 = StdRemoveItem(listParns1, s:ParnEnum_Lo)
+    "let listParns1 = StdRemoveItem(listParns, s:ParnEnum_Ro)
+    "let listParns1 = StdRemoveItem(listParns1, s:ParnEnum_Lo)
     "echom string(listParns1)
-    let listParns2 = s:ListParnsToListOfListParns2(listParns1)
+
+    let listParns2 = s:ListParnsToListOfListParns2(listParns)
     call s:AddMatchForLeftAndRightParn2(listParns2)
     "call s:AddMatchForLeftAndRightParn(listParns1)
 
@@ -757,6 +867,9 @@ function! s:RunPmatchForLine(line)
         endif
     endif
 
+    let listParns2 = s:ListParnsToListOfListParns3(listParns)
+    echom 'list parn 3:'.string(listParns2)
+    call s:AddMatchForLeftParnWithWrongRightParn(listParns2)
     "let listParns = StdRemoveItem(listParns, s:ParnEnum_Lo)
     "call s:AddMatchForUnmatchedLeftAndRightParns(listParns)
 endfunction
