@@ -29,7 +29,9 @@ endfunction
 
 highlight link myMatch Error
 highlight myMatch2 ctermbg=green
+"highlight myMatch ctermbg=red ctermfg=yellow
 
+let s:gMode = 0
 let s:gCurChar = ''
 
 let s:gOldSyns = {}
@@ -48,6 +50,9 @@ let s:ParnEnum_Ro = 4
 let s:ParnEnum_LRo = 5
 let s:ParnEnum_La = 6
 let s:ParnEnum_Ra = 7
+
+let s:ModeEnum_Input = 0
+let s:ModeEnum_Auto = 1
 
 let s:MatchKey_L = 'left'
 let s:MatchKey_R = 'right'
@@ -152,6 +157,11 @@ endfunction
 
 function! s:IsAnyLeftParns(ch)
     let lefts = s:GetAllLeftParns(g:FALSE)
+    return len(a:ch) > 0 && stridx(lefts, a:ch) != -1
+endfunction
+
+function! s:IsAnyOtherLeftParns(ch)
+    let lefts = s:GetAllLeftParns(g:TRUE)
     return len(a:ch) > 0 && stridx(lefts, a:ch) != -1
 endfunction
 
@@ -271,7 +281,7 @@ function! s:ListParnsToListOfListParns2(listParns)
 
     "echom 'counts:'.string(listCounts)
     if len(listOfListParns) > 0 && len(listOfListParns[0]) > 0
-        if listCounts[0] < 1 || listOfListParns[0][0] != s:ParnEnum_L || (listCounts[0] == 1 && listOfListParns[0][len(listOfListParns[0])-1] == s:ParnEnum_L)
+        if listCounts[0] < 1 || listOfListParns[0][0] != s:ParnEnum_L || (len(listOfListParns[0]) > 1 && listCounts[0] == 1 && listOfListParns[0][len(listOfListParns[0])-1] == s:ParnEnum_L)
             call remove(listOfListParns, 0)
         endif
     endif
@@ -621,15 +631,14 @@ function! s:AddMatchForLeftAndRightParn2(listOfListParns)
     endif
 endfunction
 
-
 " find the nearest left parn that is left-next to the current char
 " which should be a right parn
-function! s:FindNearestLeftParnLeftNext()
+function! s:FindNearestLeftParn()
     let line = getline('.')
     let line = strpart(line, 0, col('.')-1)
 
     let bFoundQuote = g:FALSE
-    let nestedParns = 0
+    let nestedParns = 1
     for i in range(len(line)-1, 0, -1)
         let ch = line[i]
 
@@ -640,17 +649,21 @@ function! s:FindNearestLeftParnLeftNext()
         if bFoundQuote == g:TRUE
             continue
         elseif s:IsAnyLeftParns(ch)
-            if nestedParns == 0
-                return ch
-            endif
             let nestedParns = nestedParns - 1
         elseif s:IsAnyRightParns(ch)
             " if we find any right parn before we find a left parn
             " end this function immediately
-            if i < len(line)-1 && nestedParns == 0
-                return ''
-            endif
+            "if i < len(line)-1 && nestedParns == 0
+                "return ''
+            "endif
             let nestedParns = nestedParns + 1
+        endif
+
+        if nestedParns == 0
+            if s:IsAnyOtherLeftParns(ch)
+                return ch
+            endif
+            break
         endif
     endfor
     return ''
@@ -663,22 +676,29 @@ function! s:RunPmatchForLine(line)
     let listParns = s:StrToListParnsEx(a:line, 's:CheckIfOtherLeftOrRightParns')
 
     let listParns2 = s:ListParnsToListOfListParns2(listParns)
+    "echom string(listParns2)
     call s:AddMatchForLeftAndRightParn2(listParns2)
     "call s:AddMatchForLeftAndRightParn(listParns1)
 
-    " this block of code will run if the user just enter a right parn " because we only highlight the left parn of a unmatched pairs,
-    " this will find the any left parn that is nearest left-next to it
-    "if s:IsAnyRightParns(s:gCurChar)
-        "echom "when open a file, you shouldn't see this"
-        "let leftParn = s:FindNearestLeftParnLeftNext()
-        "if s:IsAnyLeftParns(leftParn)
-            "call s:SetGlobalVariablesForChar(leftParn)
-        "endif
-    "endif
+    let shouldMoveOn = g:TRUE
+    
+    " check if current parn is a wrong parn for a corresponding left parn
+    if s:gMode == s:ModeEnum_Input && s:IsAnyRightParns(s:gCurChar)
+        let left = s:FindNearestLeftParn()
+        if len(left) > 0
+            call s:SetGlobalVariablesForChar(left)
+            let listParns = s:StrToListParnsEx(a:line, 's:CheckIfOtherLeftOrRightParns')
+        else
+            let shouldMoveOn = g:FALSE
+        endif
+    endif
 
-    let listParns2 = s:ListParnsToListOfListParns3(listParns)
-    call s:AddMatchForLeftParnWithWrongRightParn(listParns2)
-    "call s:AddMatchForUnmatchedLeftAndRightParns(listParns)
+    if shouldMoveOn
+        let listParns2 = s:ListParnsToListOfListParns3(listParns)
+        "echom string(listParns2)
+        call s:AddMatchForLeftParnWithWrongRightParn(listParns2)
+        "call s:AddMatchForUnmatchedLeftAndRightParns(listParns)
+    endif
 endfunction
 
 " set the global variables, this must be called first before pmatch
@@ -720,6 +740,7 @@ endfunction
 " run pmatch when opening a file
 "TODO: make this function to work on multiple matches
 function! s:RunPmatchWhenOpenFile()
+    let s:gMode = s:ModeEnum_Auto
     let listLines = StdGetListOfLinesOfCurrentFile()
     for i in range(len(listLines))
         for leftParn in keys(s:gOldSyns)
@@ -727,6 +748,7 @@ function! s:RunPmatchWhenOpenFile()
             call s:RunPmatchForLine(listLines[i])
         endfor
     endfor
+    let s:gMode = s:ModeEnum_Input
 endfunction
 
 """"""""""""""""""""""""""""""""""""""""""
@@ -973,3 +995,4 @@ function! s:GetSubListForOne(list, idx)
     endfor
     return reverse(listRet)
 endfunction
+
