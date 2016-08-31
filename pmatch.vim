@@ -310,7 +310,9 @@ function! s:ListParnsToListOfListParns3(listParns)
             elseif parn == s:ParnEnum_R || parn == s:ParnEnum_Ro
                 let indexToRemove = []
                 for i in range(len(listOfListParns))
-                    if listCounts[i] == 1 && parn == s:ParnEnum_Ro
+                    if listCounts[i] == 1 && len(listOfListParns[i]) == 1 && ((listOfListParns[i][0] == s:ParnEnum_L && parn == s:ParnEnum_R) || (listOfListParns[i][0] == s:ParnEnum_Lo && listOfListParns[i][0] == s:ParnEnum_Ro))
+                        let indexToRemove = add(indexToRemove, i)
+                    elseif listCounts[i] == 1 && parn == s:ParnEnum_Ro
                         let listOfListParns[i] = add(listOfListParns[i], s:ParnEnum_Ro)
                         let retListOfListParns = add(retListOfListParns, listOfListParns[i])
                         let indexToRemove = add(indexToRemove, i)
@@ -563,7 +565,7 @@ function! s:RunSynForLeftParnWithWrongRightParn(listParns)
         endif
         let syn = printf(pat, s:gLeftParn, pat2, anyChars, anyOtherRightParns)
         let syn = 'syntax match myMatch ' . syn
-        "echom syn
+        echom syn
         execute syn
     endif
 endfunction
@@ -578,7 +580,7 @@ function! s:RunSynForLeftParn(listParns)
     endif
     let syn = printf(pat, s:gLeftParn, pat2, anyChars)
     let syn = 'syntax match myMatch ' . syn
-    "echom syn
+    echom syn
     execute syn
 endfunction
 
@@ -592,7 +594,7 @@ function! s:RunSynForRightParn(listParns)
     endif
     let syn = printf(pat, pat2, anyChars, s:gRightParn)
     let syn = 'syntax match myMatch ' . syn
-    "echom syn
+    echom syn
     execute syn
 endfunction
 
@@ -673,10 +675,12 @@ endfunction
 " this function will be called when opening a file and when user enters a parn
 " TODO: we should find matching for given block of code, not actually a line of code
 function! s:RunPmatchForLine(line)
+    echom a:line
     let listParns = s:StrToListParnsEx(a:line, 's:CheckIfOtherLeftOrRightParns')
+    echom string(listParns)
 
     let listParns2 = s:ListParnsToListOfListParns2(listParns)
-    "echom string(listParns2)
+    echom string(listParns2)
     call s:AddMatchForLeftAndRightParn2(listParns2)
     "call s:AddMatchForLeftAndRightParn(listParns1)
 
@@ -695,7 +699,7 @@ function! s:RunPmatchForLine(line)
 
     if shouldMoveOn
         let listParns2 = s:ListParnsToListOfListParns3(listParns)
-        "echom string(listParns2)
+        echom string(listParns2)
         call s:AddMatchForLeftParnWithWrongRightParn(listParns2)
         "call s:AddMatchForUnmatchedLeftAndRightParns(listParns)
     endif
