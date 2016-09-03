@@ -271,8 +271,19 @@ function! s:ListParnsToListOfListParns2(listParns)
                 endif
             endfor
 
-            if len(listCounts) > 0 && listCounts[0] < 0 && parn == s:ParnEnum_R
-                let retListOfListParns = add(retListOfListParns, copy(listOfListParns[0]))
+            if len(listCounts) > 0
+                " if [L, R, L ,L], add it
+                if listCounts[0] < -1
+                    let retListOfListParns = add(retListOfListParns, copy(listOfListParns[0]))
+                elseif listCounts[0] < 0
+                    " if [R], add it
+                    if len(listOfListParns[0]) < 2
+                        let retListOfListParns = add(retListOfListParns, copy(listOfListParns[0]))
+                    " if [L, R, L], add it
+                    elseif listOfListParns[0][0] == s:ParnEnum_L
+                        let retListOfListParns = add(retListOfListParns, copy(listOfListParns[0]))
+                    endif
+                endif
             endif
         endif
         "echom 'list parns:'.string(listOfListParns)
@@ -280,6 +291,7 @@ function! s:ListParnsToListOfListParns2(listParns)
     endfor
 
     "echom 'counts:'.string(listCounts)
+    "echom 'before remove:'.string(listOfListParns)
     if len(listOfListParns) > 0 && len(listOfListParns[0]) > 0
         if listCounts[0] < 1 || listOfListParns[0][0] != s:ParnEnum_L || (len(listOfListParns[0]) > 1 && listCounts[0] == 1 && listOfListParns[0][len(listOfListParns[0])-1] == s:ParnEnum_L)
             call remove(listOfListParns, 0)
@@ -565,7 +577,7 @@ function! s:RunSynForLeftParnWithWrongRightParn(listParns)
         endif
         let syn = printf(pat, s:gLeftParn, pat2, anyChars, anyOtherRightParns)
         let syn = 'syntax match myMatch ' . syn
-        echom syn
+        "echom syn
         execute syn
     endif
 endfunction
@@ -580,7 +592,7 @@ function! s:RunSynForLeftParn(listParns)
     endif
     let syn = printf(pat, s:gLeftParn, pat2, anyChars)
     let syn = 'syntax match myMatch ' . syn
-    echom syn
+    "echom syn
     execute syn
 endfunction
 
@@ -594,7 +606,7 @@ function! s:RunSynForRightParn(listParns)
     endif
     let syn = printf(pat, pat2, anyChars, s:gRightParn)
     let syn = 'syntax match myMatch ' . syn
-    echom syn
+    "echom syn
     execute syn
 endfunction
 
@@ -675,12 +687,12 @@ endfunction
 " this function will be called when opening a file and when user enters a parn
 " TODO: we should find matching for given block of code, not actually a line of code
 function! s:RunPmatchForLine(line)
-    echom a:line
+    "echom a:line
     let listParns = s:StrToListParnsEx(a:line, 's:CheckIfOtherLeftOrRightParns')
-    echom string(listParns)
+    "echom string(listParns)
 
     let listParns2 = s:ListParnsToListOfListParns2(listParns)
-    echom string(listParns2)
+    "echom 'parns2:'.string(listParns2)
     call s:AddMatchForLeftAndRightParn2(listParns2)
     "call s:AddMatchForLeftAndRightParn(listParns1)
 
@@ -699,7 +711,7 @@ function! s:RunPmatchForLine(line)
 
     if shouldMoveOn
         let listParns2 = s:ListParnsToListOfListParns3(listParns)
-        echom string(listParns2)
+        "echom 'parns3:'.string(listParns2)
         call s:AddMatchForLeftParnWithWrongRightParn(listParns2)
         "call s:AddMatchForUnmatchedLeftAndRightParns(listParns)
     endif
