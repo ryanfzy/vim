@@ -577,21 +577,25 @@ endfunction
 
 function! s:GetSynForListParn2(listParns)
     call s:PlusOneFnCalled('GetSynForListParn2')
-    let anyChars = s:GetAnyCharsPat2()
-    let anyLeftChars = s:GetAnyLeftParnsPat()
-    let anyRightChars = s:GetAnyRightParnsPat()
-    let anyOtherRightChars = s:GetAnyOtherRightParns()
+    "let anyChars = s:GetAnyCharsPat2()
+    "let anyLeftChars = s:GetAnyLeftParnsPat()
+    "let anyRightChars = s:GetAnyRightParnsPat()
+    "let anyOtherRightChars = s:GetAnyOtherRightParns()
 
     let pat = ''
     for i in range(len(a:listParns))
         let parn = a:listParns[i]
-        let pat = pat . anyChars
+        "let pat = pat . anyChars
+        let pat = pat . s:gAnyCharsPat2
         if parn == s:ParnEnum_La
-            let pat = pat . anyLeftChars
+            "let pat = pat . anyLeftChars
+            let pat = pat . s:gAnyLeftPat
         elseif parn == s:ParnEnum_Ra
-            let pat = pat . anyRightChars
+            "let pat = pat . anyRightChars
+            let pat = pat . s:gAnyRightPat
         elseif parn == s:ParnEnum_Ro
-            let pat = pat . anyOtherRightChars
+            "let pat = pat . anyOtherRightChars
+            let pat = pat . s:gAnyOtherRightPat
         endif
     endfor
     return pat
@@ -599,11 +603,12 @@ endfunction
 
 function! s:GetSynForListParn(listParns)
     call s:PlusOneFnCalled('GetSynForListParn')
-    let anyChars = s:GetAnyCharsPat()
+    "let anyChars = s:GetAnyCharsPat()
     let pat = ''
     for i in range(len(a:listParns))
         let parn = a:listParns[i]
-        let pat = pat . anyChars
+        "let pat = pat . anyChars
+        let pat = pat . s:gAnyCharsPat
         if parn == s:ParnEnum_L
             let pat = pat . s:gLeftParn
         elseif parn == s:ParnEnum_R
@@ -613,40 +618,41 @@ function! s:GetSynForListParn(listParns)
     return pat
 endfunction
 
-function! s:GetAnyCharsPat()
-    call s:PlusOneFnCalled('GetAnyCharsPat')
-    "let pat = '[^%s%s]*'
-    "return printf(pat, s:gLeftParn, s:gRightParn)
-    return s:gAnyCharsPat
-endfunction
-
-function! s:GetAnyCharsPat2()
-    call s:PlusOneFnCalled('GetAnyCharsPat2')
-    "let pat = '[^%s%s]*'
-    "return printf(pat, s:GetAllLeftParns(g:FALSE), s:GetAllRightParns(g:FALSE))
-    return s:gAnyCharsPat2
-endfunction
-
-function! s:GetAnyLeftParnsPat()
-    call s:PlusOneFnCalled('GetAnyLeftParnsPat')
-    "let pat = '[%s]' 
-    "return printf(pat, s:GetAllLeftParns(g:FALSE))
-    return s:gAnyLeftPat
-endfunction
-
-function! s:GetAnyRightParnsPat()
-    call s:PlusOneFnCalled('GetAnyRightParnsPat')
-    "let pat = '[%s]'
-    "return printf(pat, s:GetAllRightParns(g:FALSE))
-    return s:gAnyRightPat
-endfunction
-
-function! s:GetAnyOtherRightParns()
-    call s:PlusOneFnCalled('GetAnyOtherRightParns')
-    "let pat = '[%s]'
-    "return printf(pat, s:GetAllRightParns(g:TRUE))
-    return s:gAnyOtherRightPat
-endfunction
+" these functions are replaced by global variables
+"function! s:GetAnyCharsPat()
+"    call s:PlusOneFnCalled('GetAnyCharsPat')
+"    "let pat = '[^%s%s]*'
+"    "return printf(pat, s:gLeftParn, s:gRightParn)
+"    return s:gAnyCharsPat
+"endfunction
+"
+"function! s:GetAnyCharsPat2()
+"    call s:PlusOneFnCalled('GetAnyCharsPat2')
+"    "let pat = '[^%s%s]*'
+"    "return printf(pat, s:GetAllLeftParns(g:FALSE), s:GetAllRightParns(g:FALSE))
+"    return s:gAnyCharsPat2
+"endfunction
+"
+"function! s:GetAnyLeftParnsPat()
+"    call s:PlusOneFnCalled('GetAnyLeftParnsPat')
+"    "let pat = '[%s]' 
+"    "return printf(pat, s:GetAllLeftParns(g:FALSE))
+"    return s:gAnyLeftPat
+"endfunction
+"
+"function! s:GetAnyRightParnsPat()
+"    call s:PlusOneFnCalled('GetAnyRightParnsPat')
+"    "let pat = '[%s]'
+"    "return printf(pat, s:GetAllRightParns(g:FALSE))
+"    return s:gAnyRightPat
+"endfunction
+"
+"function! s:GetAnyOtherRightParns()
+"    call s:PlusOneFnCalled('GetAnyOtherRightParns')
+"    "let pat = '[%s]'
+"    "return printf(pat, s:GetAllRightParns(g:TRUE))
+"    return s:gAnyOtherRightPat
+"endfunction
 
 " add match for a left parn closed by a wrong right parn
 function! s:AddMatchForLeftParnWithWrongRightParn(listOfListParns)
@@ -667,14 +673,15 @@ endfunction
 function! s:RunSynForLeftParnWithWrongRightParn(listParns)
     call s:PlusOneFnCalled('RunSynForLeftParnWithWrongRightParn')
     if len(a:listParns) > 1
-        let anyOtherRightParns = s:GetAnyOtherRightParns()
-        let anyChars = s:GetAnyCharsPat2()
+        "let anyOtherRightParns = s:GetAnyOtherRightParns()
+        "let anyChars = s:GetAnyCharsPat2()
         let pat = '/%s%s%s%s\&./'
         let pat2 = ''
         if len(a:listParns) > 2
             let pat2 = s:GetSynForListParn2(StdGetSubList(a:listParns, 1, len(a:listParns)-2))
         endif
-        let syn = printf(pat, s:gLeftParn, pat2, anyChars, anyOtherRightParns)
+        "let syn = printf(pat, s:gLeftParn, pat2, anyChars, anyOtherRightParns)
+        let syn = printf(pat, s:gLeftParn, pat2, s:gAnyCharsPat2, s:gAnyOtherRightPat)
         let syn = 'syntax match myMatch ' . syn
         "echom syn
         execute syn
@@ -684,13 +691,14 @@ endfunction
 " add syn match for a left parn without a right parn
 function! s:RunSynForLeftParn(listParns)
     call s:PlusOneFnCalled('RunSynForLeftParn')
-    let anyChars = s:GetAnyCharsPat()
+    "let anyChars = s:GetAnyCharsPat()
     let pat = '/%s%s%s$\&./'
     let pat2 = ''
     if len(a:listParns) > 1
         let pat2 = s:GetSynForListParn(StdGetSubList(a:listParns, 1))
     endif
-    let syn = printf(pat, s:gLeftParn, pat2, anyChars)
+    "let syn = printf(pat, s:gLeftParn, pat2, anyChars)
+    let syn = printf(pat, s:gLeftParn, pat2, s:gAnyCharsPat)
     let syn = 'syntax match myMatch ' . syn
     "echom syn
     execute syn
@@ -699,13 +707,14 @@ endfunction
 " add syn match for a right parn without a left parn
 function! s:RunSynForRightParn(listParns)
     call s:PlusOneFnCalled('RunSynForRightParn')
-    let anyChars = s:GetAnyCharsPat()
+    "let anyChars = s:GetAnyCharsPat()
     let pat = '/\(^%s%s\)\@<=%s/'
     let pat2 = ''
     if len(a:listParns) > 1
         let pat2 = s:GetSynForListParn(StdGetSubList(a:listParns, 0, len(a:listParns)-1))
     endif
-    let syn = printf(pat, pat2, anyChars, s:gRightParn)
+    "let syn = printf(pat, pat2, anyChars, s:gRightParn)
+    let syn = printf(pat, pat2, s:gAnyCharsPat, s:gRightParn)
     let syn = 'syntax match myMatch ' . syn
     "echom syn
     execute syn
