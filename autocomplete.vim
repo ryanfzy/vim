@@ -215,23 +215,47 @@ function AUTOCOMPLETE_Init()
 endfunction
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-function KeyWordHandler(keyWord)
+function VariableHandler(name)
     call Debug("KeyWordHandler()")
-    if index(b:listKeywords, a:keyWord) == -1
-        let b:listKeywords = add(b:listKeywords, a:keyWord)
+    "echom 'found variable:'.a:name
+    if index(b:listKeywords, a:name) == -1
+        let b:listKeywords = add(b:listKeywords, a:name)
     endif
+endfunction
+
+function FunctionHandler(name)
+    "echom 'found function:'.a:name
+    let b:listKeywords = add(b:listKeywords, a:name)
 endfunction
 
 source ~/vim/autofinder.vim
 
+" by just adding keys will not execute autocomplete
 Autocmpl AddKey identifier \a[\a\d]*
-Autocmpl AddKey variable %(identifier) before=var|function
-Autocmpl SetKeyWordHandler KeyWordHandler params=%(variable)
+Autocmpl AddKey variable %(identifier) before=var
+Autocmpl AddKey fnName %(identifier) before=var|function after=(\=&function)|\(
+"Autocmpl AddKey test %(identifier) before=(\=&function)|\(
+"Autocmpl AddKey test2 %(abc) before=a&b|c
+"Autocmpl AddKey test3 %(abc) before=a&b|(c|d)
+
+Autocmpl AddKey params %(identifier) before=%(fnName) after=\) multi
+
+" to run autocomplete, set at least one key word handler
+Autocmpl SetKeyWordHandler VariableHandler params=%(variable)
+Autocmpl SetKeyWordHandler FunctionHandler params=%(fnName)
+
+" TODO: this handles function parameter autocomplete
+"Autocmpl AddKey fnName1 %(identifier) before=var after=\=&function
+"Autocmpl AddKey fnName2 %(identifier) before=function after=(
+"Autocmpl AddKey fnParams1 %(identifier) before=%(funcName1)&( after=)
+"Autocmpl AddKey fnParams2 %(identifier) before=%(funcName2) after=)
+"Autocmpl SetFuncParamsHandler FuncParamsHandler params=%(fnName1|fnName2)&%(fnParams1|fnParams2)
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 " get list of words starting with b:currentWord
 " TODO: support fuzzy lookup
+" TODO: support dynamic ordering, most used come first
 function AUTCOMPLETE_GetWordList()
     echom "here"
     call Debug("AUTOCOMPLETE_GetWordList()")
