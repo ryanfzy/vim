@@ -692,18 +692,19 @@ function! s:RunPmatchForLine(line)
 
     "echom a:line
     let listParns = s:StrToListParns(a:line)
-    "echom string(listParns)
+    "echom 'forline:'.string(listParns)
 
     let listParns2 = s:ListParnsToListOfListParns2(listParns)
     
     " this only improve performance a little bit
     " to improve more, need to check the above function
-    if !has_key(s:gOldListParns, string(listParns2))
-        let s:gOldListParns[string(listParns2)] = 1
+    "echom string(s:gOldListParns)
+    "if !has_key(s:gOldListParns, string(listParns2))
+        "let s:gOldListParns[string(listParns2)] = 1
         "echom 'parns2:'.string(listParns2)
         call s:AddMatchForLeftAndRightParn2(listParns2)
         "call s:AddMatchForLeftAndRightParn(listParns1)
-    endif
+    "endif
 
     let shouldMoveOn = g:TRUE
     
@@ -720,12 +721,12 @@ function! s:RunPmatchForLine(line)
 
     if shouldMoveOn
         let listParns2 = s:ListParnsToListOfListParns3(listParns)
-        if !has_key(s:gOldListParns, string(listParns2))
-            let s:gOldListParns[string(listParns2)] = 1
+        "if !has_key(s:gOldListParns, string(listParns2))
+            "let s:gOldListParns[string(listParns2)] = 1
             "echom 'parns3:'.string(listParns2)
             call s:AddMatchForLeftParnWithWrongRightParn(listParns2)
             "call s:AddMatchForUnmatchedLeftAndRightParns(listParns)
-        endif
+        "endif
     endif
 
     call s:EndFnCall(fn)
