@@ -261,6 +261,38 @@ function! s:IsAnyRightParns(ch)
     return ret
 endfunction
 
+let s:gParnToNum = {}
+
+function! s:StrToListParns2(line)
+    let parns = []
+    for i in range(len(a:line))
+        let ch = a:line[i]
+        if has_key(s:gParnToNum, ch)
+            let parns = add(parns, s:gParnToNum[ch])
+        endif
+    endfor
+    return parns
+endfunction
+
+function! s:ConvertParns(parns)
+    let lp = len(s:gLeftParn) > 1 ? s:gLeftParn[1] : s:gLeftParn
+    let rp = len(s:gRightParn) > 1 ? s:gRightParn[1] : s:gRightParn
+    let lnum = s:gParnToNum[lp]
+    let rnum = s:gParnToNum[rp]
+
+    let ret = []
+    for parn in a:parns
+        if parn == lnum
+            let ret = add(ret, s:ParnEnum_L)
+        elseif parn == rnum
+            let ret = add(ret, s:ParnEnum_R)
+        else
+            let ret = add(ret, parn % 2 == 0 ? s:ParnEnum_Lo : s:ParnEnum_Ro)
+        endif
+    endfor
+    return ret
+endfunction
+
 " this translate string to a list of numbers, ( to 0 and ) to 1
 " ( => [0]
 " ) => [1]
@@ -271,6 +303,7 @@ endfunction
 " [] => [3,4]
 " it also accept a custom function which accept the ch and translate it
 " into a number or enumeration
+" NOTE: retired, keep this, StrToListParns2 and ConvertParns doing the same job
 function! s:StrToListParns(line)
     let fn = s:StartFnCall('StrToListParnsEx')
 
@@ -309,6 +342,158 @@ function! s:StrToListParns(line)
 
     call s:EndFnCall(fn)
     return listParns
+endfunction
+
+let s:gNullNode = 100
+
+function! s:CreateNullNode()
+    let node = {}
+    let node['value'] = s:gNullNode
+    return node
+endfunction
+
+function! s:CreateNode(value)
+    let node = {}
+    let node['value'] = a:value
+    let node['parent'] = s:CreateNullNode()
+    let node['children'] = []
+    return node
+endfunction
+
+function! s:IsNullNode(node)
+    return a:node['value'] == s:gNullNode
+endfunction
+
+function! s:AddChild(node, childValue)
+    let child = s:CreateNode(a:childValue)
+    let child['parent'] = a:node
+    let a:node['children'] = add(a:node['children'], child)
+    "let a:node['left']['parent'] = a:node
+endfunction
+
+function! s:EchomTree(node, depth)
+    let ret = [string(a:depth).':'.string(a:node['value'])]
+    if len(a:node['children']) > 0
+        for child in a:node['children']
+            let ret = extend(ret, s:EchomTree(child, a:depth+1))
+        endfor
+    endif
+    "if !s:IsNullNode(a:node['left'])
+        "let ret = extend(ret, s:EchomTree(a:node['left'], a:depth+1))
+    "elseif !s:IsNullNode(a:node['right'])
+        "let ret = extend(ret, s:EchomTree(s:node['right'], a:depth+1))
+    "endif
+    return ret
+endfunction
+
+function! s:ConvertTree(tree)
+    let ret = []
+    let parn = a:tree['value']
+
+    if parn == s:ParnEnum_LR
+        let ret = add(ret, s:ParnEnum_L)
+    else
+        let ret = add(ret, parn)
+    endif
+
+    if len(a:tree['children']) > 0
+        for child in a:tree['children']
+            let ret = extend(ret, s:ConvertTree(child))
+        endfor
+    endif
+
+    if parn == s:ParnEnum_LR
+        let ret = add(ret, s:ParnEnum_R)
+    endif
+
+    return ret
+endfunction
+
+function! s:ConvertTrees(trees)
+    let retList = []
+    let retList2 = []
+    for index in range(len(a:trees))
+        if a:trees[index]['value'] == s:ParnEnum_R
+            if index == 0
+                let retList2 = add(retList2, [s:ParnEnum_R])
+            else
+                let ret = add(s:DoConvertTrees(a:trees, 0, index-1, g:TRUE), s:ParnEnum_R)
+                let retList2 = add(retList2, ret)
+            endif
+        else
+            let ret = s:DoConvertTrees(a:trees, index, len(a:trees)-1, g:FALSE)
+            if len(ret) > 0
+                let retList = add(retList, ret)
+            endif
+        endif
+        if len(a:trees[index]['children']) > 0
+            let retList3 = s:ConvertTrees(a:trees[index]['children'])
+            if len(retList3) > 0
+                let retList2 = extend(retList2, retList3)
+            endif
+        endif
+    endfor
+    return extend(retList, retList2)
+endfunction
+
+function! s:DoConvertTrees(trees, startIndex, endIndex, addLR)
+    let rets = []
+    let pass = g:TRUE
+    for index in range(a:startIndex, a:endIndex)
+        let tree = a:trees[index]
+        if tree['value'] == s:ParnEnum_L
+            let pass = g:FALSE
+            let parns = [s:ParnEnum_L]
+            if len(tree['children']) > 0
+                for child in tree['children']
+                    let parns = extend(parns, s:ConvertTree(child))
+                endfor
+            endif
+            "if !s:IsNullNode(tree['left'])
+                "let parns = extend(parns, s:ConvertTree(tree['left']))
+            "endif
+            let rets = extend(rets, parns)
+        elseif tree['value'] == s:ParnEnum_R && a:addLR == g:TRUE
+            let rets = add(rets, s:ParnEnum_R)
+        elseif tree['value'] == s:ParnEnum_LR
+            if pass == g:TRUE && a:addLR == g:FALSE
+                return []
+            else
+                let rets = extend(rets, s:ConvertTree(tree))
+            endif
+        endif
+    endfor
+    return rets
+endfunction
+
+function! s:ConvertParns2(parns)
+    let trees = []
+    let root = s:CreateNode(s:gNullNode)
+    for parn in a:parns
+        if parn == s:ParnEnum_L || parn == s:ParnEnum_R
+            if s:IsNullNode(root)
+                let node = s:CreateNode(parn)
+                let trees = add(trees, node)
+                if parn == s:ParnEnum_L
+                    let root = node
+                endif
+            elseif root['value'] == s:ParnEnum_L && parn == s:ParnEnum_R
+                let root['value'] = s:ParnEnum_LR
+                let root = root['parent']
+            elseif parn == s:ParnEnum_L
+                call s:AddChild(root, parn)
+                let root = root['children'][len(root['children'])-1]
+            endif
+        endif
+    endfor
+
+    let ret = []
+    for tree in trees
+        let ret = extend(ret, s:EchomTree(tree, 0))
+    endfor
+    echom 'tree:'.string(ret)
+
+    return s:ConvertTrees(trees)
 endfunction
 
 function! s:ListParnsToListOfListParns2(listParns)
@@ -576,7 +761,7 @@ function! s:RunSynForLeftParn(listParns)
     endif
     let syn = printf(pat, s:gLeftParn, pat2, s:gAnyCharsPat)
     let syn = 'syntax match myMatch ' . syn
-    "echom syn
+    echom syn
     execute syn
 
     call s:EndFnCall(fn)
@@ -593,7 +778,7 @@ function! s:RunSynForRightParn(listParns)
     endif
     let syn = printf(pat, pat2, s:gAnyCharsPat, s:gRightParn)
     let syn = 'syntax match myMatch ' . syn
-    "echom syn
+    echom syn
     execute syn
 
     call s:EndFnCall(fn)
@@ -687,14 +872,18 @@ endfunction
 " find matchings in given line
 " this function will be called when opening a file and when user enters a parn
 " TODO: we should find matching for given block of code, not actually a line of code
-function! s:RunPmatchForLine(line)
+function! s:RunPmatchForLine(parns)
+"function! s:RunPmatchForLine(line)
     let fn = s:StartFnCall('RunPmatchForLine')
 
-    "echom a:line
-    let listParns = s:StrToListParns(a:line)
-    "echom 'forline:'.string(listParns)
+    "let listParns = s:StrToListParns(a:line)
+    let listParns = s:ConvertParns(a:parns)
+    echom 'parns:'.string(listParns)
 
     let listParns2 = s:ListParnsToListOfListParns2(listParns)
+    echom 'old:'.string(listParns2)
+    let listParns2 = s:ConvertParns2(listParns)
+    echom 'new:'.string(listParns2)
     
     " this only improve performance a little bit
     " to improve more, need to check the above function
@@ -713,21 +902,22 @@ function! s:RunPmatchForLine(line)
         let left = s:FindNearestLeftParn()
         if len(left) > 0
             call s:SetGlobalVariablesForChar(left)
-            let listParns = s:StrToListParns(a:line)
+            "let listParns = s:StrToListParns(a:line)
+            let listParns = s:ConvertParns(a:parns)
         else
             let shouldMoveOn = g:FALSE
         endif
     endif
 
-    if shouldMoveOn
-        let listParns2 = s:ListParnsToListOfListParns3(listParns)
+    "if shouldMoveOn
+        "let listParns2 = s:ListParnsToListOfListParns3(listParns)
         "if !has_key(s:gOldListParns, string(listParns2))
             "let s:gOldListParns[string(listParns2)] = 1
             "echom 'parns3:'.string(listParns2)
-            call s:AddMatchForLeftParnWithWrongRightParn(listParns2)
+            "call s:AddMatchForLeftParnWithWrongRightParn(listParns2)
             "call s:AddMatchForUnmatchedLeftAndRightParns(listParns)
         "endif
-    endif
+    "endif
 
     call s:EndFnCall(fn)
 endfunction
@@ -764,10 +954,13 @@ function! s:FeedParn(ch)
     " set the global variables first
     call s:SetGlobalVariablesForChar(a:ch)
 
+    let parns = s:StrToListParns2(line)
+
     " by default it is line based so pass the line here
     " TODO: pmatch should support block based, so matching will be
     "       work in a block of code instead of a line
-    call s:RunPmatchForLine(l:line)
+    "call s:RunPmatchForLine(l:line)
+    call s:RunPmatchForLine(parns)
 
     " check if we should run pmatch for multi line
     "call s:TryRunPmatchForMultiLine(l:line)
@@ -782,12 +975,29 @@ function! s:RunPmatchWhenOpenFile()
     let s:gMode = s:ModeEnum_Auto
 
     call s:SetGlobalVariables()
-    let listLines = StdGetListOfLinesOfCurrentFile()
+    let lines = StdGetListOfLinesOfCurrentFile()
+
+    let listParns = []
+    for line in lines
+        let parns = s:StrToListParns2(line)
+        if len(parns) > 0
+            let listParns = add(listParns, parns)
+        endif
+    endfor
 
     for leftParn in keys(s:gOldSyns)
         call s:SetGlobalVariablesForChar(leftParn)
-        for i in range(len(listLines))
-            call s:RunPmatchForLine(listLines[i])
+        "for line in lines
+        for parns in listParns
+            "let p1 = s:StrToListParns(line)
+            "let p2 = s:StrToListParns2(line)
+            "let p3 = s:ConvertParns(p2)
+            "echom line
+            "echom string(p1)
+            "echom string(p2)
+            "echom string(p3)
+            call s:RunPmatchForLine(parns)
+           " call s:RunPmatchForLine(line)
         endfor
     endfor
     let s:gMode = s:ModeEnum_Input
@@ -815,6 +1025,10 @@ function! s:CmdProcessor(args)
             let dictParams = listCmd[1]
             let leftParn = dictParams[s:MatchKey_L]
             let rightParn = dictParams[s:MatchKey_R]
+
+            " new code
+            let s:gParnToNum[leftParn] = len(s:gParnToNum)
+            let s:gParnToNum[rightParn] = s:gParnToNum[leftParn] + 1
 
             let s:gMatches[leftParn] = dictParams
             let s:gMatches[rightParn] = dictParams
