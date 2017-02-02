@@ -38,8 +38,6 @@ let s:gOldSyns = {}
 let s:gMatches = {}
 let s:gCurOldSyn = {}
 
-let s:gOldListParns = {}
-
 let s:gLeftParn = ''
 let s:gRightParn = ''
 
@@ -77,14 +75,17 @@ let s:gAllOtherRights = ''
 let s:gDictAllOtherLefts = {}
 let s:gDictAllOtherRights = {}
 
-let s:gAnyCharsPat = ''
-let s:gAnyCharsPat2 = ''
-let s:gAnyLeftPat = ''
-let s:gAnyRightPat = ''
+let s:gAnyOtherChar = ''
+let s:gAnyLeft = ''
+let s:gAnyRight = ''
 let s:gAnyOtherRightPat = ''
 
+""""""""""""""""""""""""""""""""""""""""""""""""""""
+" debug code
+""""""""""""""""""""""""""""""""""""""""""""""""""""
 let s:gNumFnCalled = {}
 let s:gTmFnCalled = {}
+let s:gShowFnCall = g:TRUE
 
 function! s:GetTime()
     "return system('date +%s%N') / 1000000
@@ -92,29 +93,38 @@ function! s:GetTime()
 endfunction
 
 function! s:StartFnCall(fnName)
-    let fn = {}
-    let fn['name'] = a:fnName
-    let fn['tmStart'] = s:GetTime()
-    return fn
+    if s:gShowFnCall == g:TRUE
+        let fn = {}
+        let fn['name'] = a:fnName
+        let fn['tmStart'] = s:GetTime()
+        return fn
+    endif
+    return 0
 endfunction
 
 function! s:EndFnCall(fn)
-    let time = s:GetTime() - a:fn['tmStart']
-    let name = a:fn['name']
-    if has_key(s:gNumFnCalled, name)
-        let s:gNumFnCalled[name] += 1
-        let s:gTmFnCalled[name] += time
-    else
-        let s:gNumFnCalled[name] = 1
-        let s:gTmFnCalled[name] = time
+    if s:gShowFnCall == g:TRUE
+        let time = s:GetTime() - a:fn['tmStart']
+        let name = a:fn['name']
+        if has_key(s:gNumFnCalled, name)
+            let s:gNumFnCalled[name] += 1
+            let s:gTmFnCalled[name] += time
+        else
+            let s:gNumFnCalled[name] = 1
+            let s:gTmFnCalled[name] = time
+        endif
     endif
 endfunction
 
 function! s:ShowFnCalled()
-    for key in keys(s:gNumFnCalled)
-        echom key . ':' . s:gNumFnCalled[key] . '-' . s:gTmFnCalled[key]
-    endfor
+    if s:gShowFnCall == g:TRUE
+        for key in keys(s:gNumFnCalled)
+            echom key . ':' . s:gNumFnCalled[key] . '-' . s:gTmFnCalled[key]
+        endfor
+    endif
 endfunction
+
+""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 function! s:SetGlobalVariables()
     let fn = s:StartFnCall('SetGlobalVariables')
@@ -122,9 +132,9 @@ function! s:SetGlobalVariables()
     let s:gAllLefts = s:GetAllLeftOrRightParns(s:MatchKey_L, g:FALSE)
     let s:gAllRights = s:GetAllLeftOrRightParns(s:MatchKey_R, g:FALSE)
 
-    let s:gAnyCharsPat2 = printf(s:gAnyCharsPatT, s:gAllLefts, s:gAllRights)
-    let s:gAnyLeftPat = printf(s:gAnyCharsPatT2, s:gAllLefts)
-    let s:gAnyRightPat = printf(s:gAnyCharsPatT2, s:gAllRights)
+    let s:gAnyOtherChar = printf(s:gAnyCharsPatT, s:gAllLefts, s:gAllRights)
+    let s:gAnyLeft = printf(s:gAnyCharsPatT2, s:gAllLefts)
+    let s:gAnyRight = printf(s:gAnyCharsPatT2, s:gAllRights)
 
     call s:EndFnCall(fn)
 endfunction
@@ -135,7 +145,6 @@ function! s:SetGlobalVariablesForCurParn()
     let s:gAllOtherLefts = s:GetAllLeftOrRightParns(s:MatchKey_L, g:TRUE)
     let s:gAllOtherRights = s:GetAllLeftOrRightParns(s:MatchKey_R, g:TRUE)
 
-    let s:gAnyCharsPat = printf(s:gAnyCharsPatT, s:gAllLefts, s:gAllRights)
     let s:gAnyOtherRightPat = printf(s:gAnyCharsPatT2, s:gAllOtherRights)
 
     call s:EndFnCall(fn)
@@ -194,38 +203,6 @@ function! s:CheckAndEscapeChar(ch)
     return a:ch
 endfunction
 
-" get the sub list starting with last left parn
-function! s:GetLastLeftParnSubList(listParns)
-    let fn = s:StartFnCall('GetLastLeftParnSubList')
-
-    for i in range(len(a:listParns)-1, 0, -1)
-        let parn = a:listParns[i]
-        if type(parn) != type([]) && parn == s:ParnEnum_L
-            
-            call s:EndFnCall(fn)
-            return StdGetSubList(a:listParns, i)
-        endif
-    endfor
-
-    call s:EndFnCall(fn)
-    return []
-endfunction
-
-function! s:GetFirstRightParnSubList(listParns)
-    let fn = s:StartFnCall('GetFirstRightParnSubList')
-    for i in range(len(a:listParns))
-        let parn = a:listParns[i]
-        if type(parn) != type([]) && parn == s:ParnEnum_R
-
-            call s:EndFnCall(fn) 
-            return s:GetSubListR(a:listParns, i)
-        endif
-    endfor
-
-    call s:EndFnCall(fn) 
-    return []
-endfunction
-
 function! s:IsAnyLeftParns(ch)
     let fn = s:StartFnCall('IsAnyLeftParns')
 
@@ -261,7 +238,8 @@ let s:gNullNode = 100
 
 " convert a string to a list of parns
 " e.g. '([])' => [0,2,3,1]
-function! s:StrToListParns2(line)
+function! s:StrToListParns(line)
+    let fn = s:StartFnCall('StrToListParns')
     let parns = []
     for i in range(len(a:line))
         let ch = a:line[i]
@@ -269,12 +247,14 @@ function! s:StrToListParns2(line)
             let parns = add(parns, s:gParnToNum[ch])
         endif
     endfor
+    call s:EndFnCall(fn)
     return parns
 endfunction
 
 " convert a list of parns to another list of parns respect to current parn
 " e.g. [0,2,3,1] if parn = (0,1) => [0,3,4,1]
 function! s:ConvertParns(parns)
+    let fn = s:StartFnCall('ConvertParns')
     let lp = len(s:gLeftParn) > 1 ? s:gLeftParn[1] : s:gLeftParn
     let rp = len(s:gRightParn) > 1 ? s:gRightParn[1] : s:gRightParn
     let lnum = s:gParnToNum[lp]
@@ -290,6 +270,7 @@ function! s:ConvertParns(parns)
             let ret = add(ret, parn % 2 == 0 ? s:ParnEnum_Lo : s:ParnEnum_Ro)
         endif
     endfor
+    call s:EndFnCall(fn)
     return ret
 endfunction
 
@@ -372,6 +353,7 @@ endfunction
 
 " conver a list of tree to a list of parn
 function! s:ConvertTrees(trees)
+    let fn = s:StartFnCall('ConvertTrees')
     let retList = []
     let retList2 = []
     for index in range(len(a:trees))
@@ -404,17 +386,16 @@ function! s:ConvertTrees(trees)
             endif
         endif
     endfor
+    call s:EndFnCall(fn)
     return extend(retList, retList2)
 endfunction
 
 function! s:DoConvertTrees(trees, startIndex, endIndex)
     let rets = []
-    "let pass = g:TRUE
     for index in range(a:startIndex, a:endIndex)
         let isFirst = index == a:startIndex ? g:TRUE : g:FALSE
         let tree = a:trees[index]
         if tree['value'] == s:ParnEnum_L
-            "let pass = g:FALSE
             if isFirst == g:TRUE
                 let parns = [s:ParnEnum_L]
             else
@@ -437,6 +418,7 @@ endfunction
 
 " conver a list of parn to a list of tree
 function! s:ConvertParns2(parns)
+    let fn = s:StartFnCall('ConvertParns2')
     let trees = []
     let root = s:CreateNode(s:gNullNode)
     for parn in a:parns
@@ -469,7 +451,7 @@ function! s:ConvertParns2(parns)
         endif
         "endif
     endfor
-
+    call s:EndFnCall(fn)
     return s:ConvertTrees(trees)
 endfunction
 
@@ -527,15 +509,15 @@ function! s:GetSynForListParn(listParns)
     let pat = ''
     for i in range(len(a:listParns))
         let parn = a:listParns[i]
-        let pat = pat . s:gAnyCharsPat
+        let pat = pat . s:gAnyOtherChar
         if parn == s:ParnEnum_L
             let pat = pat . s:gLeftParn
         elseif parn == s:ParnEnum_R
             let pat = pat . s:gRightParn
         elseif parn == s:ParnEnum_La
-            let pat = pat . s:gAnyLeftPat
+            let pat = pat . s:gAnyLeft
         elseif parn == s:ParnEnum_Ra
-            let pat = pat . s:gAnyRightPat
+            let pat = pat . s:gAnyRight
         endif
     endfor
 
@@ -553,7 +535,7 @@ function! s:RunSynForLeftParnWithWrongRightParn(listParns)
         if len(a:listParns) > 2
             let pat2 = s:GetSynForListParn(StdGetSubList(a:listParns, 1, len(a:listParns)-2))
         endif
-        let syn = printf(pat, s:gLeftParn, pat2, s:gAnyCharsPat2, s:gAnyOtherRightPat)
+        let syn = printf(pat, s:gLeftParn, pat2, s:gAnyOtherChar, s:gAnyOtherRightPat)
         let syn = 'syntax match myMatch ' . syn
         "echom syn
         execute syn
@@ -571,7 +553,7 @@ function! s:RunSynForLeftParn(listParns)
     if len(a:listParns) > 1
         let pat2 = s:GetSynForListParn(StdGetSubList(a:listParns, 1))
     endif
-    let syn = printf(pat, s:gLeftParn, pat2, s:gAnyCharsPat)
+    let syn = printf(pat, s:gLeftParn, pat2, s:gAnyOtherChar)
     let syn = 'syntax match myMatch ' . syn
     "echom syn
     execute syn
@@ -588,7 +570,7 @@ function! s:RunSynForRightParn(listParns)
     if len(a:listParns) > 1
         let pat2 = s:GetSynForListParn(StdGetSubList(a:listParns, 0, len(a:listParns)-1))
     endif
-    let syn = printf(pat, pat2, s:gAnyCharsPat, s:gRightParn)
+    let syn = printf(pat, pat2, s:gAnyOtherChar, s:gRightParn)
     let syn = 'syntax match myMatch ' . syn
     "echom syn
     execute syn
@@ -610,8 +592,8 @@ function! s:ShouldAddMatch(listParns)
 endfunction
 
 " add match for a left parn without a right parn or a right parn without a left parn
-function! s:AddMatchForLeftAndRightParn2(listOfListParns)
-    let fn = s:StartFnCall('AddMatchForLeftAndRightParn2')
+function! s:AddMatchForLeftAndRightParn(listOfListParns)
+    let fn = s:StartFnCall('AddMatchForLeftAndRightParn')
 
     if len(a:listOfListParns) > 0
         for listParns in a:listOfListParns
@@ -657,11 +639,6 @@ function! s:FindNearestLeftParn()
         elseif s:IsAnyLeftParns(ch)
             let nestedParns = nestedParns - 1
         elseif s:IsAnyRightParns(ch)
-            " if we find any right parn before we find a left parn
-            " end this function immediately
-            "if i < len(line)-1 && nestedParns == 0
-                "return ''
-            "endif
             let nestedParns = nestedParns + 1
         endif
 
@@ -686,10 +663,6 @@ function! s:RunPmatchForLine(parns)
         let left = s:FindNearestLeftParn()
         if len(left) > 0
             call s:SetGlobalVariablesForChar(left)
-            "let listParns = s:StrToListParns(a:line)
-            "let listParns = s:ConvertParns(a:parns)
-        "else
-            "let shouldMoveOn = g:FALSE
         endif
     endif
 
@@ -701,20 +674,7 @@ function! s:RunPmatchForLine(parns)
     let listParns3 = s:ConvertParns2(listParns)
     "echom 'new:'.string(listParns3)
     
-    " this only improve performance a little bit
-    " to improve more, need to check the above function
-    "echom string(s:gOldListParns)
-    "if !has_key(s:gOldListParns, string(listParns2))
-        "let s:gOldListParns[string(listParns2)] = 1
-        "echom 'parns2:'.string(listParns2)
-        "call s:AddMatchForLeftAndRightParn2(listParns2)
-        call s:AddMatchForLeftAndRightParn2(listParns3)
-        "call s:AddMatchForLeftAndRightParn(listParns1)
-    "endif
-
-    "let shouldMoveOn = g:TRUE
-    
-    " check if current parn is a wrong parn for a corresponding left parn
+    call s:AddMatchForLeftAndRightParn(listParns3)
 
     call s:EndFnCall(fn)
 endfunction
@@ -748,7 +708,7 @@ function! s:FeedParn(ch)
     let line = getline('.')
     let line = strpart(line, 0, col('.')-1) . a:ch . strpart(line, col('.')-1)
 
-    let parns = s:StrToListParns2(line)
+    let parns = s:StrToListParns(line)
 
     " by default it is line based so pass the line here
     " TODO: pmatch should support block based, so matching will be
@@ -776,7 +736,7 @@ function! s:RunPmatchWhenOpenFile()
 
     let listParns = []
     for line in lines
-        let parns = s:StrToListParns2(line)
+        let parns = s:StrToListParns(line)
         if len(parns) > 0
             let listParns = add(listParns, parns)
         endif
@@ -814,7 +774,6 @@ function! s:CmdProcessor(args)
             let leftParn = dictParams[s:MatchKey_L]
             let rightParn = dictParams[s:MatchKey_R]
 
-            " new code
             let s:gParnToNum[leftParn] = len(s:gParnToNum)
             let s:gParnToNum[rightParn] = s:gParnToNum[leftParn] + 1
 
@@ -844,231 +803,11 @@ command -narg=+ Pmatch :call s:CmdProcessor(<q-args>)
 
 Pmatch addMatch left=( right=)
 Pmatch addMatch left=[ right=]
+" TODO
+"Pmatch addMatch leftRight='
+"Pmatch addMatch leftRight="
+"Pmatch addMatch left=( right=) ignoreInLeftRight='
+"Pmatch addMatch left=( right=) ignoreInLeftRight="
 
 " run pmatch when opening a file
 au BufRead * call <SID>RunPmatchWhenOpenFile()
-
-"echom s:GetTime() - s:GetTime()
-
-" retired
-
-" this translate string to a list of numbers, ( to 0 and ) to 1
-" ( => [0]
-" ) => [1]
-" () => [0,1]
-" )( => [1,0]
-" [ => [3]
-" ] => [4]
-" [] => [3,4]
-" it also accept a custom function which accept the ch and translate it
-" into a number or enumeration
-" NOTE: retired, keep this, StrToListParns2 and ConvertParns doing the same job
-function! s:StrToListParns(line)
-    let fn = s:StartFnCall('StrToListParnsEx')
-
-    let listParns = []
-    let bEscaped = g:FALSE
-    let bFoundString = g:FALSE
-
-    for i in range(len(a:line))
-       let ch = a:line[i] 
-       if !bFoundString
-           if ch =~ '"' || ch =~ "'"
-               let bFoundString = g:TRUE
-           elseif ch =~ s:gLeftParn
-               let listParns = add(listParns, s:ParnEnum_L)
-           elseif ch =~ s:gRightParn
-               let listParns = add(listParns, s:ParnEnum_R)
-           elseif stridx(s:gAllOtherLefts, ch) != -1
-               let listParns = add(listParns, s:ParnEnum_Lo)
-           elseif stridx(s:gAllOtherRights, ch) != -1
-               let listParns = add(listParns, s:ParnEnum_Ro)
-           endif
-       " ignore parns between " or '
-       else
-           " ignore escaped characters
-           if ch =~ '\'
-               let bEscaped = g:TRUE
-           elseif ch =~ '"' || ch =~ "'"
-               if bEscaped
-                   let bEscaped = g:FALSE
-               else
-                   let bFoundString = g:FALSE
-               endif
-           endif
-       endif
-    endfor
-
-    call s:EndFnCall(fn)
-    return listParns
-endfunction
-
-" replaced by ConvertParns2
-function! s:ListParnsToListOfListParns2(listParns)
-    let fn = s:StartFnCall('ListParnsToListOfListParns2')
-
-    let retListOfListParns = []
-
-    let listOfListParns = []
-    let listCounts = []
-
-    for parn in a:listParns
-        "echom 'parn:'.parn
-        if parn == s:ParnEnum_L
-            for i in range(len(listOfListParns))
-                let listOfListParns[i] = add(listOfListParns[i], parn)
-                "let listCounts[i] = listCounts[i] + 1
-                let listCounts[i] += 1
-            endfor
-
-            let listOfListParns = add(listOfListParns, [parn])
-            let listCounts = add(listCounts, 1)
-        elseif parn == s:ParnEnum_R
-            " remove the paired parns
-            let listIndexToRemove = []
-            for i in range(len(listCounts))
-                if listCounts[i] == 1
-                    let listIndexToRemove = add(listIndexToRemove, i)
-                endif
-                let listOfListParns[i] = add(listOfListParns[i], parn)
-                let listCounts[i] = listCounts[i] - 1
-            endfor
-
-            if len(listOfListParns) < 1
-                let listOfListParns = add(listOfListParns, [parn])
-                let listCounts = add(listCounts, -1)
-            endif
-
-            "echom 'index:'.string(listIndexToRemove)
-            for i in range(len(listIndexToRemove))
-                " don't remove the first one
-                if listIndexToRemove[i] != 0
-                    let index = listIndexToRemove[i] - i
-                    if listIndexToRemove[0] == 0 && i == 1
-                        let index = index + 1
-                    endif
-                    call remove(listOfListParns, index)
-                    call remove(listCounts, index)
-                endif
-            endfor
-
-            if len(listCounts) > 0
-                " if [L, R, L ,L], add it
-                if listCounts[0] < -1
-                    let retListOfListParns = add(retListOfListParns, copy(listOfListParns[0]))
-                elseif listCounts[0] < 0
-                    " if [R], add it
-                    if len(listOfListParns[0]) < 2
-                        let retListOfListParns = add(retListOfListParns, copy(listOfListParns[0]))
-                    " if [L, R, L], add it
-                    elseif listOfListParns[0][0] == s:ParnEnum_L
-                        let retListOfListParns = add(retListOfListParns, copy(listOfListParns[0]))
-                    endif
-                endif
-            endif
-        endif
-        "echom 'list parns:'.string(listOfListParns)
-        "echom 'counts:'.string(listCounts)
-    endfor
-
-    "echom 'counts:'.string(listCounts)
-    "echom 'before remove:'.string(listOfListParns)
-    if len(listOfListParns) > 0 && len(listOfListParns[0]) > 0
-        if listCounts[0] < 1 || listOfListParns[0][0] != s:ParnEnum_L || (len(listOfListParns[0]) > 1 && listCounts[0] == 1 && listOfListParns[0][len(listOfListParns[0])-1] == s:ParnEnum_L)
-            call remove(listOfListParns, 0)
-        endif
-    endif
-
-    let retListOfListParns = extend(retListOfListParns, listOfListParns)
-
-    call s:EndFnCall(fn)
-    return retListOfListParns
-endfunction
-
-" replaced by AddMatchForLeftAndRightParn2
-function! s:ListParnsToListOfListParns3(listParns)
-    let fn = s:StartFnCall('ListParnsToListOfListParns3')
-
-    let retListOfListParns = []
-    let listOfListParns = []
-    let listCounts = []
-    if len(a:listParns) > 1
-        for parn in a:listParns
-            if parn == s:ParnEnum_L || parn == s:ParnEnum_Lo
-                for i in range(len(listOfListParns))
-                    "let listOfListParns[i] = add(listOfListParns[i], parn)
-                    let listOfListParns[i] = add(listOfListParns[i], s:ParnEnum_La)
-                    let listCounts[i] = listCounts[i] + 1
-                endfor
-                if parn == s:ParnEnum_L
-                    "let listOfListParns = add(listOfListParns, [parn])
-                    let listOfListParns = add(listOfListParns, [s:ParnEnum_L])
-                    let listCounts = add(listCounts, 1)
-                endif
-            elseif parn == s:ParnEnum_R || parn == s:ParnEnum_Ro
-                let indexToRemove = []
-                for i in range(len(listOfListParns))
-                    if listCounts[i] == 1 && len(listOfListParns[i]) == 1 && ((listOfListParns[i][0] == s:ParnEnum_L && parn == s:ParnEnum_R) || (listOfListParns[i][0] == s:ParnEnum_Lo && listOfListParns[i][0] == s:ParnEnum_Ro))
-                        let indexToRemove = add(indexToRemove, i)
-                    elseif listCounts[i] == 1 && parn == s:ParnEnum_Ro
-                        let listOfListParns[i] = add(listOfListParns[i], s:ParnEnum_Ro)
-                        let retListOfListParns = add(retListOfListParns, listOfListParns[i])
-                        let indexToRemove = add(indexToRemove, i)
-                        "let listCounts[i] = listCounts[i] - 1
-                    else
-                        let listOfListParns[i] = add(listOfListParns[i], s:ParnEnum_Ra)
-                    endif
-                    "let listOfListParns[i] = add(listOfListParns[i], parn)
-                    let listCounts[i] = listCounts[i] - 1
-                endfor
-
-                for i in range(len(indexToRemove))
-                    let index = indexToRemove[i] - i
-                    call remove(listOfListParns, index)
-                    call remove(listCounts, index)
-                endfor
-            endif
-        endfor
-    endif
-
-    call s:EndFnCall(fn)
-    return retListOfListParns
-endfunction
-
-" add match for a left parn closed by a wrong right parn
-function! s:AddMatchForLeftParnWithWrongRightParn(listOfListParns)
-    let fn = s:StartFnCall('AddMatchForLeftParnWithWrongRightParn')
-
-    if len(a:listOfListParns) > 0
-        for listParns in a:listOfListParns
-            if has_key(s:gCurOldSyn, string(listParns))
-                continue
-            else
-                let s:gCurOldSyn[string(listParns)] = 1
-                call s:RunSynForLeftParnWithWrongRightParn(listParns)
-            endif
-        endfor
-    endif
-
-    call s:EndFnCall(fn)
-endfunction
-
-function! s:GetSynForListParn2(listParns)
-    let fn = s:StartFnCall('GetSynForListParn2')
-
-    let pat = ''
-    for i in range(len(a:listParns))
-        let parn = a:listParns[i]
-        let pat = pat . s:gAnyCharsPat2
-        if parn == s:ParnEnum_La
-            let pat = pat . s:gAnyLeftPat
-        elseif parn == s:ParnEnum_Ra
-            let pat = pat . s:gAnyRightPat
-        elseif parn == s:ParnEnum_Ro
-            let pat = pat . s:gAnyOtherRightPat
-        endif
-    endfor
-
-    call s:EndFnCall(fn)
-    return pat
-endfunction
