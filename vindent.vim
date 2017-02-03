@@ -24,9 +24,23 @@ endfunction
 """"""""""""""""""""""""""""""""""""""""
 "highlight vindentColor ctermbg=lightgreen
 
-highlight vindentColor ctermbg=green ctermfg=white
+highlight vindentColor ctermbg=lightred ctermfg=white
+highlight vindentColor2 ctermbg=red ctermfg=white
 
-au BufEnter * syntax match vindentColor /^\s\{4}\zs\s/
+function s:RunVindent()
+    for i in range(1, 10)
+        let syn = 'syntax match vindentColor /\(^\s\{'.i*4.'}\)\@<=\(\s\|{\|}\)/'
+        "echom syn
+        execute syn
+    endfor
+    "execute 'syntax match vindentColor /^\s\{4}\zs\s/'
+    "execute 'syntax match vindentColor /^\s*\%5v\zs\s/'
+    "execute 'syntax match vindentColor /\(^\s\+if.*\n\s\{4}\)\@<=\s/'
+    "execute 'syntax match vindentColor /\(^\s\+if.*\n\s\{8}\)\@<=\s/'
+    "execute 'syntax match vindentColor /\(\(^\s\+if.*\n\s\{4}\)\@<=.*\n\s\{4}\)\@<=./'
+endfunction
+
+au BufEnter * call s:RunVindent()
 
 """"""""""""""""""""""""""""""""""""""""
 " end of plugin body
