@@ -1,5 +1,3 @@
-"vindent start=if end=endif
-
 " author: ryan feng
 
 " check if it is already loaded
@@ -7,6 +5,11 @@ if exists("g:loaded_vindent")
     finish
 endif
 let g:loaded_vindent = 1
+
+if !exists("g:loaded_stdlib")
+    echom "ERROR: Vindent requires std.vim"
+    finish
+endif
 
 " save current vim settings
 let s:save_cpo = &cpo
@@ -22,27 +25,63 @@ endfunction
 """"""""""""""""""""""""""""""""""""""""
 " start of plugin body
 """"""""""""""""""""""""""""""""""""""""
-"highlight vindentColor ctermbg=lightgreen
+
+let s:dictOptions = {}
+let s:dictOptions['indentLevel'] = '10'
+"let s:gBlockLine = 10 
+"let s:gMaxColumns = 80
 
 highlight vindentColor ctermbg=lightred ctermfg=white
-highlight vindentColor2 ctermbg=red ctermfg=white
 
 function s:RunVindent()
-    for i in range(1, 10)
-        let syn = 'syntax match vindentColor /\(^\s\{'.i*4.'}\)\@<=\(\s\|{\|}\)/'
+    let indentLevel = str2nr(s:dictOptions['indentLevel'])
+    for i in range(1, indentLevel)
+        let syn = 'syntax match vindentColor /\(^\s\{'.i*4.'}\)\@<=\s/'
         "echom syn
         execute syn
     endfor
     "execute 'syntax match vindentColor /^\s\{4}\zs\s/'
     "execute 'syntax match vindentColor /^\s*\%5v\zs\s/'
+
+    "for i in range(1, s:gIndentLevel)
+        "let syn = 'syntax match vindentColor /\(^\s\+if.*\n\s\{' . i*4 . '}\)\@<=\s/'
+        "echom syn
+        "execute syn
+    "endfor
+
+    " this create two many matches, slows vim
+    "for col in range(1, s:gMaxColumns)
+        "let syn = 'syntax match vindentColor /\(^\s\{'.col.'}if.*\n\s\{'.col.'}\)\@<=./'
+        "echom syn
+    "endfor
     "execute 'syntax match vindentColor /\(^\s\+if.*\n\s\{4}\)\@<=\s/'
     "execute 'syntax match vindentColor /\(^\s\+if.*\n\s\{8}\)\@<=\s/'
     "execute 'syntax match vindentColor /\(\(^\s\+if.*\n\s\{4}\)\@<=.*\n\s\{4}\)\@<=./'
 endfunction
 
-au BufEnter * call s:RunVindent()
+function! s:CmdProcessor(args)
+    let listCmd = StdParseCmd(a:args)
+    if len(listCmd) > 1
+        if listCmd[0] =~ 'setOption'
+            let dictParams = listCmd[1]
+            for key in keys(dictParams)
+                if has_key(s:dictOptions, key)
+                    let s:dictOptions[key] = dictParams[key]
+                endif
+            endfor
+        endif
+    endif
+    "echom 'options:'.string(s:dictOptions)
+endfunction
 
 """"""""""""""""""""""""""""""""""""""""
 " end of plugin body
 """"""""""""""""""""""""""""""""""""""""
 call s:Restore_cpo()
+
+au BufEnter * call s:RunVindent()
+
+command -narg=+ Vindent :call s:CmdProcessor(<q-args>)
+
+" this is the default option
+"Vindent setOption indentLevel=10
