@@ -129,10 +129,14 @@ endfunction
 function! s:SetGlobalVariables()
     let fn = s:StartFnCall('SetGlobalVariables')
 
-    let s:gAllLefts = s:GetAllLeftOrRightParns(s:MatchKey_L, g:FALSE)
-    let s:gAllRights = s:GetAllLeftOrRightParns(s:MatchKey_R, g:FALSE)
+    let s:gAllLefts = s:GetAllLeftOrRightParns(s:MatchKey_L, g:FALSE, g:TRUE)
+    let s:gAllRights = s:GetAllLeftOrRightParns(s:MatchKey_R, g:FALSE, g:TRUE)
 
     let s:gAnyOtherChar = printf(s:gAnyCharsPatT, s:gAllLefts, s:gAllRights)
+
+    " this fixes ( is hilighted in (\)
+    let s:gAllLefts = s:GetAllLeftOrRightParns(s:MatchKey_L, g:FALSE, g:FALSE)
+
     let s:gAnyLeft = printf(s:gAnyCharsPatT2, s:gAllLefts)
     let s:gAnyRight = printf(s:gAnyCharsPatT2, s:gAllRights)
 
@@ -142,8 +146,8 @@ endfunction
 function! s:SetGlobalVariablesForCurParn()
     let fn = s:StartFnCall('SetGlobalVariablesForCurParn')
     
-    let s:gAllOtherLefts = s:GetAllLeftOrRightParns(s:MatchKey_L, g:TRUE)
-    let s:gAllOtherRights = s:GetAllLeftOrRightParns(s:MatchKey_R, g:TRUE)
+    let s:gAllOtherLefts = s:GetAllLeftOrRightParns(s:MatchKey_L, g:TRUE, g:TRUE)
+    let s:gAllOtherRights = s:GetAllLeftOrRightParns(s:MatchKey_R, g:TRUE, g:TRUE)
 
     let s:gAnyOtherRightPat = printf(s:gAnyCharsPatT2, s:gAllOtherRights)
 
@@ -155,13 +159,13 @@ function! s:ReturnParnEnumNoneFn(parm)
 endfunction
 
 " this will not escape the left and right parn char
-function! s:GetAllLeftOrRightParns(leftOrRight, excludeCurOne)
+function! s:GetAllLeftOrRightParns(leftOrRight, excludeCurOne, shouldEscapeChar)
     let fn = s:StartFnCall('GetAllLeftOrRightParns')
 
     let keys = keys(s:gMatches)
     let keysAsStr = ''
     for key in keys
-        let leftOrRightParn = s:CheckAndEscapeChar(s:gMatches[key][a:leftOrRight])
+        let leftOrRightParn = s:CheckAndEscapeChar(s:gMatches[key][a:leftOrRight], a:shouldEscapeChar)
         if a:excludeCurOne && (leftOrRightParn == s:gLeftParn || leftOrRightParn == s:gRightParn)
             continue
         elseif stridx(keysAsStr, leftOrRightParn) == -1
@@ -192,10 +196,10 @@ function! s:GetAllRightParns(exceptCurOne)
 endfunction
 
 " escape certain characters for regex pattern
-function! s:CheckAndEscapeChar(ch)
+function! s:CheckAndEscapeChar(ch, shouldEscapeChar)
     let fn = s:StartFnCall('CheckAndEscapeChar')
 
-    if len(a:ch) > 0 && stridx(s:gCharsToEscape, a:ch) > -1
+    if len(a:ch) > 0 && a:shouldEscapeChar == g:TRUE && stridx(s:gCharsToEscape, a:ch) > -1
         return '\' . a:ch
     endif
 
@@ -690,8 +694,8 @@ function! s:SetGlobalVariablesForChar(ch)
 
     " get the char for pmatch to work on
     let leftParn = s:gMatches[a:ch][s:MatchKey_L]
-    let s:gLeftParn = s:CheckAndEscapeChar(leftParn)
-    let s:gRightParn = s:CheckAndEscapeChar(s:gMatches[a:ch][s:MatchKey_R])
+    let s:gLeftParn = s:CheckAndEscapeChar(leftParn, g:TRUE)
+    let s:gRightParn = s:CheckAndEscapeChar(s:gMatches[a:ch][s:MatchKey_R], g:TRUE)
     "echom 'left(' . s:gLeftParn . ') right(' . s:gRightParn . ')'
 
     " set the current old syn to check
